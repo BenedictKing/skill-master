@@ -1,6 +1,6 @@
 {
   "name": "skill-master",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Cross-platform skill package manager for AI coding agents",
   "type": "module",
   "main": "./dist/cli.js",
@@ -21,7 +21,17 @@
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run lint && npm run build"
   },
-  "keywords": ["skill", "manager", "claude-code", "opencode", "cursor", "cline", "agent", "ai", "skills"],
+  "keywords": [
+    "skill",
+    "manager",
+    "claude-code",
+    "opencode",
+    "cursor",
+    "cline",
+    "agent",
+    "ai",
+    "skills"
+  ],
   "author": "BenedictKing",
   "license": "MIT",
   "repository": {

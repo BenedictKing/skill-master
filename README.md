@@ -7,7 +7,7 @@ Cross-platform skill package manager for AI coding agents, fully compatible with
 ## Features
 
 - ✅ **Smart .env Management** — Auto backup/restore environment variables during updates
-- ✅ **Multi-Platform Support** — Claude Code, Cursor, Cline, Windsurf, OpenCode
+- ✅ **Multi-Platform Support** — 39 AI coding agents including Claude Code, Cursor, Cline, Windsurf, OpenCode and more
 - ✅ **npx skills Compatible** — Drop-in replacement with same command interface
 - ✅ **Unified Directory** — Centralized management in `~/.agents/`
 - ✅ **Atomic Operations** — Auto rollback on failure
@@ -140,6 +140,8 @@ During install/update, searches for existing config in order:
 
 ## Supported Platforms
 
+39 AI coding agents are supported. Auto-detection works for agents with a project directory marker:
+
 | Platform | Detection | Skills Directory |
 |----------|-----------|------------------|
 | Claude Code | `.claude/` | `.claude/skills/` |
@@ -147,6 +149,19 @@ During install/update, searches for existing config in order:
 | Cline | `.cline/` | `.cline/skills/` |
 | Windsurf | `.windsurf/` | `.windsurf/skills/` |
 | OpenCode | `~/.config/opencode/` | `.opencode/skills/` |
+| Roo Code | `.roo/` | `.roo/skills/` |
+| Augment | `.augment/` | `.augment/skills/` |
+| Continue | `.continue/` | `.continue/skills/` |
+| Goose | `.goose/` | `.goose/skills/` |
+| Kode | `.kode/` | `.kode/skills/` |
+| Trae | `.trae/` | `.trae/skills/` |
+
+<details>
+<summary>All 39 supported agents</summary>
+
+Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, Zencoder, Neovate, Pochi, AdaL
+
+</details>
 
 ## Development
 
@@ -176,7 +191,7 @@ npm test
 | Feature | npx skills | skill-master |
 |---------|-----------|---------------|
 | .env Protection | ❌ Deleted on update | ✅ Auto backup/restore |
-| Multi-Platform | ❌ Claude Code only | ✅ 5 platforms |
+| Multi-Platform | ❌ Claude Code only | ✅ 39 platforms |
 | Config Management | ❌ None | ✅ env commands |
 | Diagnostics | ❌ None | ✅ doctor command |
 | Symlinks | ✅ | ✅ + copy mode |

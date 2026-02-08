@@ -5,7 +5,7 @@
 跨平台 Skill 包管理器，解决 `npx skills` 的两大核心问题：
 
 1. **保护 .env 配置** — 安装/更新时自动备份和恢复环境变量，不再丢失 API Key
-2. **跨平台兼容** — 支持 Claude Code、Cursor、Cline、Windsurf、OpenCode 五大 AI 编程平台
+2. **跨平台兼容** — 支持 39 个 AI 编程代理，包括 Claude Code、Cursor、Cline、Windsurf、OpenCode 等
 
 ## 特性
 
@@ -127,6 +127,8 @@ skill-master doctor
 
 ## 支持的平台
 
+支持 39 个 AI 编程代理。具有项目目录标记的代理支持自动检测：
+
 | 平台 | 检测标识 | Skills 目录 |
 |------|---------|------------|
 | Claude Code | `.claude/` | `.claude/skills/` |
@@ -134,6 +136,19 @@ skill-master doctor
 | Cline | `.cline/` | `.cline/skills/` |
 | Windsurf | `.windsurf/` | `.windsurf/skills/` |
 | OpenCode | `~/.config/opencode/` | `.opencode/skills/` |
+| Roo Code | `.roo/` | `.roo/skills/` |
+| Augment | `.augment/` | `.augment/skills/` |
+| Continue | `.continue/` | `.continue/skills/` |
+| Goose | `.goose/` | `.goose/skills/` |
+| Kode | `.kode/` | `.kode/skills/` |
+| Trae | `.trae/` | `.trae/skills/` |
+
+<details>
+<summary>全部 39 个支持的代理</summary>
+
+Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, Zencoder, Neovate, Pochi, AdaL
+
+</details>
 
 ## 开发
 
@@ -163,7 +178,7 @@ npm test
 | 特性 | npx skills | skill-master |
 |------|-----------|---------------|
 | .env 保护 | ❌ 每次更新被删除 | ✅ 自动备份恢复 |
-| 跨平台支持 | ❌ 仅 Claude Code | ✅ 5 个平台 |
+| 跨平台支持 | ❌ 仅 Claude Code | ✅ 39 个平台 |
 | 配置管理 | ❌ 无 | ✅ env 子命令 |
 | 诊断工具 | ❌ 无 | ✅ doctor 命令 |
 | 符号链接 | ✅ | ✅ + 复制模式 |
