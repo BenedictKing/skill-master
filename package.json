@@ -1,0 +1,33 @@
+{
+  "name": "skill-manager",
+  "version": "0.1.0",
+  "description": "Cross-platform skill package manager for AI coding agents",
+  "type": "module",
+  "main": "./dist/cli.js",
+  "bin": {
+    "skill-manager": "./bin/skill-manager.mjs"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": ["skill", "manager", "claude-code", "opencode", "cursor", "cline", "agent"],
+  "author": "BenedictKing",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "yaml": "^2.7.0",
+    "chalk": "^5.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "vitest": "^3.0.0"
+  }
+}
