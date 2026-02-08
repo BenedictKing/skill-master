@@ -1,4 +1,4 @@
-# skill-manager
+# skill-master
 
 跨平台 Skill 包管理器，解决 `npx skills` 的两大核心问题：
 
@@ -16,13 +16,13 @@
 ## 安装
 
 ```bash
-npm install -g skill-manager
+npm install -g skill-master
 ```
 
 或直接使用：
 
 ```bash
-npx skill-manager install <skill-source>
+npx skill-master install <skill-source>
 ```
 
 ## 快速开始
@@ -31,55 +31,55 @@ npx skill-manager install <skill-source>
 
 ```bash
 # 从 GitHub 安装
-skill-manager install https://github.com/user/skill-name
+skill-master install https://github.com/user/skill-name
 
 # 从本地路径安装
-skill-manager install ./local-skill
+skill-master install ./local-skill
 
 # 指定目标平台
-skill-manager install https://github.com/user/skill --agent=cursor
+skill-master install https://github.com/user/skill --agent=cursor
 
 # 使用复制而非符号链接（Windows 推荐）
-skill-manager install https://github.com/user/skill --copy
+skill-master install https://github.com/user/skill --copy
 ```
 
 ### 管理环境变量
 
 ```bash
 # 查看所有 skill 的配置状态
-skill-manager env list
+skill-master env list
 
 # 设置环境变量
-skill-manager env set tavily-web TAVILY_API_KEY=your_key_here
+skill-master env set tavily-web TAVILY_API_KEY=your_key_here
 
 # 用编辑器打开 .env 文件
-skill-manager env edit tavily-web
+skill-master env edit tavily-web
 ```
 
 ### 更新和删除
 
 ```bash
 # 更新 skill（自动保护 .env）
-skill-manager update tavily-web
+skill-master update tavily-web
 
 # 删除 skill
-skill-manager remove tavily-web
+skill-master remove tavily-web
 
 # 删除 skill 并清除配置
-skill-manager remove tavily-web --purge
+skill-master remove tavily-web --purge
 ```
 
 ### 查看信息
 
 ```bash
 # 列出所有已安装的 skill
-skill-manager list
+skill-master list
 
 # 查看 skill 详细信息
-skill-manager info tavily-web
+skill-master info tavily-web
 
 # 运行诊断
-skill-manager doctor
+skill-master doctor
 ```
 
 ## 目录结构
@@ -137,8 +137,8 @@ skill-manager doctor
 
 ```bash
 # 克隆仓库
-git clone https://github.com/user/skill-manager.git
-cd skill-manager
+git clone https://github.com/user/skill-master.git
+cd skill-master
 
 # 安装依赖
 npm install
@@ -158,7 +158,7 @@ npm test
 
 ## 与 `npx skills` 的对比
 
-| 特性 | npx skills | skill-manager |
+| 特性 | npx skills | skill-master |
 |------|-----------|---------------|
 | .env 保护 | ❌ 每次更新被删除 | ✅ 自动备份恢复 |
 | 跨平台支持 | ❌ 仅 Claude Code | ✅ 5 个平台 |
@@ -170,21 +170,21 @@ npm test
 
 ## 常见问题
 
-### Q: 为什么需要 skill-manager？
+### Q: 为什么需要 skill-master？
 
-A: `npx skills add` 在安装/更新时会执行 `rm -rf`，导致 `.env` 文件被删除，用户每次更新后需要重新配置 API Key。skill-manager 通过智能备份机制彻底解决这个问题。
+A: `npx skills add` 在安装/更新时会执行 `rm -rf`，导致 `.env` 文件被删除，用户每次更新后需要重新配置 API Key。skill-master 通过智能备份机制彻底解决这个问题。
 
 ### Q: 可以和 `npx skills` 共存吗？
 
-A: 可以。skill-manager 使用独立的 `~/.agents/` 目录，不会影响现有的 skill 安装。
+A: 可以。skill-master 使用独立的 `~/.agents/` 目录，不会影响现有的 skill 安装。
 
 ### Q: Windows 上符号链接失败怎么办？
 
-A: 使用 `--copy` 参数：`skill-manager install <source> --copy`
+A: 使用 `--copy` 参数：`skill-master install <source> --copy`
 
 ### Q: 如何迁移现有的 skill？
 
-A: 直接用 skill-manager 重新安装即可，它会自动检测并保留现有的 .env 配置。
+A: 直接用 skill-master 重新安装即可，它会自动检测并保留现有的 .env 配置。
 
 ## 许可证
 

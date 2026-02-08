@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-const PREFIX = chalk.blue('skill-manager');
+const PREFIX = chalk.blue('skill-master');
 
 /** Informational message */
 export function info(msg: string): void {

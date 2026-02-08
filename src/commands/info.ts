@@ -5,7 +5,7 @@ import { SkillNotFoundError } from '../utils/errors.js';
 
 export async function info(args: string[]): Promise<void> {
   if (args.length === 0) {
-    logger.error('Usage: skill-manager info <skill-name>');
+    logger.error('Usage: skill-master info <skill-name>');
     process.exit(1);
   }
 

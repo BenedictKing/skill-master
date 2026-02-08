@@ -52,7 +52,7 @@ export async function check(_args: string[]): Promise<void> {
   if (updatable === 0) {
     logger.success('All skills are up to date!');
   } else {
-    logger.info(`${updatable} skill(s) can be updated. Run "skill-manager update <name>" to update.`);
+    logger.info(`${updatable} skill(s) can be updated. Run "skill-master update <name>" to update.`);
   }
 }
 

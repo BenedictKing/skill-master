@@ -1,4 +1,4 @@
-# skill-manager
+# skill-master
 
 [中文文档](./README.zh-CN.md)
 
@@ -16,13 +16,13 @@ Cross-platform skill package manager for AI coding agents, fully compatible with
 ## Installation
 
 ```bash
-npm install -g skill-manager
+npm install -g skill-master
 ```
 
 Or use directly:
 
 ```bash
-npx skill-manager add <source>
+npx skill-master add <source>
 ```
 
 ## Quick Start
@@ -31,65 +31,65 @@ npx skill-manager add <source>
 
 ```bash
 # From GitHub
-skill-manager add owner/repo
-skill-manager add https://github.com/user/skill
+skill-master add owner/repo
+skill-master add https://github.com/user/skill
 
 # From local path
-skill-manager add ./local-skill
+skill-master add ./local-skill
 
 # Specify target agent
-skill-manager add owner/repo -a claude-code cursor
+skill-master add owner/repo -a claude-code cursor
 
 # Copy mode (recommended for Windows)
-skill-manager add owner/repo --copy
+skill-master add owner/repo --copy
 ```
 
 ### Manage Environment Variables
 
 ```bash
 # List all skills with env status
-skill-manager env list
+skill-master env list
 
 # Set environment variable
-skill-manager env set my-skill API_KEY=your_key
+skill-master env set my-skill API_KEY=your_key
 
 # Edit .env file
-skill-manager env edit my-skill
+skill-master env edit my-skill
 ```
 
 ### Update and Remove
 
 ```bash
 # Update skill (auto preserves .env)
-skill-manager update my-skill
+skill-master update my-skill
 
 # Remove skill
-skill-manager remove my-skill
+skill-master remove my-skill
 
 # Remove with config purge
-skill-manager remove my-skill --purge
+skill-master remove my-skill --purge
 ```
 
 ### Other Commands
 
 ```bash
 # List installed skills
-skill-manager list
+skill-master list
 
 # Search for skills
-skill-manager find "code review"
+skill-master find "code review"
 
 # Check for updates
-skill-manager check
+skill-master check
 
 # Create new skill template
-skill-manager init my-new-skill
+skill-master init my-new-skill
 
 # Show skill details
-skill-manager info my-skill
+skill-master info my-skill
 
 # Run diagnostics
-skill-manager doctor
+skill-master doctor
 ```
 
 ## Command Aliases
@@ -97,11 +97,11 @@ skill-manager doctor
 All `npx skills` commands work:
 
 ```bash
-skill-manager add       # or: a, install, i
-skill-manager remove    # or: rm, r
-skill-manager list      # or: ls
-skill-manager find      # or: search, f, s
-skill-manager update    # or: upgrade
+skill-master add       # or: a, install, i
+skill-master remove    # or: rm, r
+skill-master list      # or: ls
+skill-master find      # or: search, f, s
+skill-master update    # or: upgrade
 ```
 
 ## Directory Structure
@@ -152,8 +152,8 @@ During install/update, searches for existing config in order:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/skill-manager.git
-cd skill-manager
+git clone https://github.com/yourusername/skill-master.git
+cd skill-master
 
 # Install dependencies
 npm install
@@ -173,7 +173,7 @@ npm test
 
 ## vs npx skills
 
-| Feature | npx skills | skill-manager |
+| Feature | npx skills | skill-master |
 |---------|-----------|---------------|
 | .env Protection | ❌ Deleted on update | ✅ Auto backup/restore |
 | Multi-Platform | ❌ Claude Code only | ✅ 5 platforms |
@@ -185,21 +185,21 @@ npm test
 
 ## FAQ
 
-### Why skill-manager?
+### Why skill-master?
 
-`npx skills add` executes `rm -rf` during install/update, deleting `.env` files. Users must reconfigure API keys after every update. skill-manager solves this with intelligent backup.
+`npx skills add` executes `rm -rf` during install/update, deleting `.env` files. Users must reconfigure API keys after every update. skill-master solves this with intelligent backup.
 
 ### Can it coexist with npx skills?
 
-Yes. skill-manager uses separate `~/.agents/` directory and won't affect existing installations.
+Yes. skill-master uses separate `~/.agents/` directory and won't affect existing installations.
 
 ### Symlink fails on Windows?
 
-Use `--copy` flag: `skill-manager add <source> --copy`
+Use `--copy` flag: `skill-master add <source> --copy`
 
 ### How to migrate existing skills?
 
-Simply reinstall with skill-manager. It will auto-detect and preserve existing `.env` configs.
+Simply reinstall with skill-master. It will auto-detect and preserve existing `.env` configs.
 
 ## License
 

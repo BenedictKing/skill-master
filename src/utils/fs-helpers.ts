@@ -90,5 +90,5 @@ export async function isSymlink(path: string): Promise<boolean> {
 /** Create a temporary directory with a unique name */
 export function createTempDir(): string {
   const id = randomBytes(8).toString('hex');
-  return join(tmpdir(), `skill-manager-${id}`);
+  return join(tmpdir(), `skill-master-${id}`);
 }

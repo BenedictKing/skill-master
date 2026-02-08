@@ -106,7 +106,7 @@ export function parseRemoveFlags(args: string[]): { names: string[]; flags: Remo
 /** remove command — remove installed skills */
 export async function remove(args: string[]): Promise<void> {
   if (args.length === 0) {
-    logger.error('Usage: skill-manager remove [skills...] [options]');
+    logger.error('Usage: skill-master remove [skills...] [options]');
     console.log('');
     console.log('Options:');
     console.log('  -g, --global          Remove from global (~/.agents/)');

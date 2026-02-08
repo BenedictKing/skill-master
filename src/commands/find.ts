@@ -5,13 +5,13 @@ export async function find(args: string[]): Promise<void> {
   const query = args.filter(a => !a.startsWith('-')).join(' ').trim();
 
   if (!query) {
-    console.log('Usage: skill-manager find <query>');
+    console.log('Usage: skill-master find <query>');
     console.log('');
     console.log('Search for skills in the online registry.');
     console.log('');
     console.log('Examples:');
-    console.log('  skill-manager find git');
-    console.log('  skill-manager find "code review"');
+    console.log('  skill-master find git');
+    console.log('  skill-master find "code review"');
     process.exit(0);
   }
 

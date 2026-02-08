@@ -9,7 +9,7 @@ export function stripAnsi(str: string): string {
 }
 
 /**
- * Run the skill-manager CLI with given args.
+ * Run the skill-master CLI with given args.
  * Uses tsx to execute TypeScript directly.
  */
 export function runCli(

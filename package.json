@@ -1,11 +1,11 @@
 {
-  "name": "skill-manager",
+  "name": "skill-master",
   "version": "0.1.0",
   "description": "Cross-platform skill package manager for AI coding agents",
   "type": "module",
   "main": "./dist/cli.js",
   "bin": {
-    "skill-manager": "./bin/skill-manager.mjs"
+    "skill-master": "./bin/skill-master.mjs"
   },
   "files": [
     "dist",
@@ -26,12 +26,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/skill-manager.git"
+    "url": "https://github.com/yourusername/skill-master.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/skill-manager/issues"
+    "url": "https://github.com/yourusername/skill-master/issues"
   },
-  "homepage": "https://github.com/yourusername/skill-manager#readme",
+  "homepage": "https://github.com/yourusername/skill-master#readme",
   "engines": {
     "node": ">=18"
   },

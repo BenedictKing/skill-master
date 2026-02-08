@@ -94,7 +94,7 @@ export async function installSkill(options: InstallOptions): Promise<void> {
     // Check if there's a .env.example to hint about
     const examplePath = join(canonicalPath, '.env.example');
     if (existsSync(examplePath)) {
-      logger.warn('Found .env.example — run `skill-manager env edit ' + skillName + '` to configure');
+      logger.warn('Found .env.example — run `skill-master env edit ' + skillName + '` to configure');
     }
   }
 

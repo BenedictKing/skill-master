@@ -14,7 +14,7 @@ export async function env(args: string[]): Promise<void> {
   } else if (subcommand === 'edit') {
     await envEdit(args.slice(1));
   } else {
-    logger.error('Usage: skill-manager env <list|set|edit>');
+    logger.error('Usage: skill-master env <list|set|edit>');
     process.exit(1);
   }
 }
@@ -41,7 +41,7 @@ async function envList(): Promise<void> {
 
 async function envSet(args: string[]): Promise<void> {
   if (args.length < 2) {
-    logger.error('Usage: skill-manager env set <skill> KEY=VALUE');
+    logger.error('Usage: skill-master env set <skill> KEY=VALUE');
     process.exit(1);
   }
 
@@ -65,7 +65,7 @@ async function envSet(args: string[]): Promise<void> {
 
 async function envEdit(args: string[]): Promise<void> {
   if (args.length === 0) {
-    logger.error('Usage: skill-manager env edit <skill>');
+    logger.error('Usage: skill-master env edit <skill>');
     process.exit(1);
   }
 

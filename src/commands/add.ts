@@ -135,7 +135,7 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
 /** add command — install skills (compatible with `npx skills add`) */
 export async function add(args: string[]): Promise<void> {
   if (args.length === 0) {
-    logger.error('Usage: skill-manager add <source> [options]');
+    logger.error('Usage: skill-master add <source> [options]');
     console.log('');
     console.log('Options:');
     console.log('  -g, --global          Install globally (~/.agents/)');

@@ -2,7 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentPlatform } from '../types/index.js';
 
-/** Root directory for all skill-manager data */
+/** Root directory for all skill-master data */
 export const AGENTS_HOME = join(homedir(), '.agents');
 
 /** Persistent user config (API keys etc.) */

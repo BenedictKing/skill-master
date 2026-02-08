@@ -1,4 +1,4 @@
-/** Base error class for skill-manager */
+/** Base error class for skill-master */
 export class SkillManagerError extends Error {
   constructor(message: string) {
     super(message);

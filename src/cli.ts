@@ -15,19 +15,19 @@ import * as logger from './utils/logger.js';
 const VERSION = '0.1.0';
 
 const HELP = `
-skill-manager v${VERSION}
+skill-master v${VERSION}
 
 Usage:
-  skill-manager add <source> [options]     Install skills (aliases: install, a, i)
-  skill-manager remove [skills...] [opts]  Remove skills (aliases: rm, r)
-  skill-manager list [options]             List installed skills (alias: ls)
-  skill-manager find [query]               Search for skills (aliases: search, f, s)
-  skill-manager update [skill]             Update skills (alias: upgrade)
-  skill-manager init [name]                Create a new skill template
-  skill-manager check                      Check for skill updates
-  skill-manager env <list|set|edit>        Manage environment variables
-  skill-manager info <skill-name>          Show skill details
-  skill-manager doctor                     Run diagnostics
+  skill-master add <source> [options]     Install skills (aliases: install, a, i)
+  skill-master remove [skills...] [opts]  Remove skills (aliases: rm, r)
+  skill-master list [options]             List installed skills (alias: ls)
+  skill-master find [query]               Search for skills (aliases: search, f, s)
+  skill-master update [skill]             Update skills (alias: upgrade)
+  skill-master init [name]                Create a new skill template
+  skill-master check                      Check for skill updates
+  skill-master env <list|set|edit>        Manage environment variables
+  skill-master info <skill-name>          Show skill details
+  skill-master doctor                     Run diagnostics
 
 Add Options:
   -g, --global          Install globally (~/.agents/)
@@ -41,13 +41,13 @@ Add Options:
   --force               Force reinstall
 
 Examples:
-  skill-manager add owner/repo
-  skill-manager add https://github.com/user/skill -a claude-code cursor -y
-  skill-manager add ./local-skill --agent=cursor --copy
-  skill-manager remove my-skill --purge
-  skill-manager find "code review"
-  skill-manager init my-new-skill
-  skill-manager check
+  skill-master add owner/repo
+  skill-master add https://github.com/user/skill -a claude-code cursor -y
+  skill-master add ./local-skill --agent=cursor --copy
+  skill-master remove my-skill --purge
+  skill-master find "code review"
+  skill-master init my-new-skill
+  skill-master check
 `;
 
 async function main() {
@@ -113,7 +113,7 @@ async function main() {
         await check(commandArgs);
         break;
 
-      // env, info, doctor — skill-manager extensions
+      // env, info, doctor — skill-master extensions
       case 'env':
         await env(commandArgs);
         break;

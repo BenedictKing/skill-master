@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { runCli, runCliOutput } from '../test-utils.js';
 
-describe('skill-manager CLI', () => {
+describe('skill-master CLI', () => {
   describe('--help', () => {
     it('should display help message with usage', () => {
       const result = runCli(['--help']);
-      expect(result.stdout).toContain('skill-manager v');
+      expect(result.stdout).toContain('skill-master v');
       expect(result.stdout).toContain('Usage:');
-      expect(result.stdout).toContain('skill-manager add <source>');
-      expect(result.stdout).toContain('skill-manager remove');
-      expect(result.stdout).toContain('skill-manager list');
-      expect(result.stdout).toContain('skill-manager find');
-      expect(result.stdout).toContain('skill-manager update');
-      expect(result.stdout).toContain('skill-manager init');
-      expect(result.stdout).toContain('skill-manager check');
+      expect(result.stdout).toContain('skill-master add <source>');
+      expect(result.stdout).toContain('skill-master remove');
+      expect(result.stdout).toContain('skill-master list');
+      expect(result.stdout).toContain('skill-master find');
+      expect(result.stdout).toContain('skill-master update');
+      expect(result.stdout).toContain('skill-master init');
+      expect(result.stdout).toContain('skill-master check');
       expect(result.exitCode).toBe(0);
     }, 10000);
 
@@ -64,7 +64,7 @@ describe('skill-manager CLI', () => {
   describe('no arguments', () => {
     it('should display help when no args provided', () => {
       const result = runCli([]);
-      expect(result.stdout).toContain('skill-manager v');
+      expect(result.stdout).toContain('skill-master v');
       expect(result.stdout).toContain('Usage:');
       expect(result.exitCode).toBe(0);
     }, 10000);
@@ -91,35 +91,35 @@ describe('skill-manager CLI', () => {
       // Without source, add command shows error
       const result = runCli(['a']);
       const output = result.stdout + result.stderr;
-      expect(output).toContain('Usage: skill-manager add');
+      expect(output).toContain('Usage: skill-master add');
       expect(result.exitCode).toBe(1);
     }, 10000);
 
     it('should route "i" to add command', () => {
       const result = runCli(['i']);
       const output = result.stdout + result.stderr;
-      expect(output).toContain('Usage: skill-manager add');
+      expect(output).toContain('Usage: skill-master add');
       expect(result.exitCode).toBe(1);
     }, 10000);
 
     it('should route "install" to add command', () => {
       const result = runCli(['install']);
       const output = result.stdout + result.stderr;
-      expect(output).toContain('Usage: skill-manager add');
+      expect(output).toContain('Usage: skill-master add');
       expect(result.exitCode).toBe(1);
     }, 10000);
 
     it('should route "rm" to remove command', () => {
       const result = runCli(['rm']);
       const output = result.stdout + result.stderr;
-      expect(output).toContain('Usage: skill-manager remove');
+      expect(output).toContain('Usage: skill-master remove');
       expect(result.exitCode).toBe(1);
     }, 10000);
 
     it('should route "r" to remove command', () => {
       const result = runCli(['r']);
       const output = result.stdout + result.stderr;
-      expect(output).toContain('Usage: skill-manager remove');
+      expect(output).toContain('Usage: skill-master remove');
       expect(result.exitCode).toBe(1);
     }, 10000);
 
@@ -131,25 +131,25 @@ describe('skill-manager CLI', () => {
 
     it('should route "search" to find command', () => {
       const result = runCli(['search']);
-      expect(result.stdout).toContain('Usage: skill-manager find');
+      expect(result.stdout).toContain('Usage: skill-master find');
       expect(result.exitCode).toBe(0);
     }, 10000);
 
     it('should route "f" to find command', () => {
       const result = runCli(['f']);
-      expect(result.stdout).toContain('Usage: skill-manager find');
+      expect(result.stdout).toContain('Usage: skill-master find');
     }, 10000);
 
     it('should route "s" to find command', () => {
       const result = runCli(['s']);
-      expect(result.stdout).toContain('Usage: skill-manager find');
+      expect(result.stdout).toContain('Usage: skill-master find');
     }, 10000);
 
     it('should route "upgrade" to update command', () => {
       const result = runCli(['upgrade']);
       const output = result.stdout + result.stderr;
       // update command needs skill name
-      expect(output).toContain('Usage: skill-manager update');
+      expect(output).toContain('Usage: skill-master update');
       expect(result.exitCode).toBe(1);
     }, 10000);
   });

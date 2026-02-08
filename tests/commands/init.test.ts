@@ -8,7 +8,7 @@ describe('init command', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `skill-manager-init-test-${Date.now()}`);
+    testDir = join(tmpdir(), `skill-master-init-test-${Date.now()}`);
     mkdirSync(testDir, { recursive: true });
   });
 

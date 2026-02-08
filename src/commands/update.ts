@@ -7,7 +7,7 @@ import type { SkillSource } from '../types/index.js';
 
 export async function update(args: string[]): Promise<void> {
   if (args.length === 0) {
-    logger.error('Usage: skill-manager update <skill-name> [--force]');
+    logger.error('Usage: skill-master update <skill-name> [--force]');
     process.exit(1);
   }
 
