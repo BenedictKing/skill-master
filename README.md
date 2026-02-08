@@ -1,199 +1,214 @@
 # skill-manager
 
-跨平台 Skill 包管理器，解决 `npx skills` 的两大核心问题：
+[中文文档](./README.zh-CN.md)
 
-1. **保护 .env 配置** — 安装/更新时自动备份和恢复环境变量，不再丢失 API Key
-2. **跨平台兼容** — 支持 Claude Code、Cursor、Cline、Windsurf、OpenCode 五大 AI 编程平台
+Cross-platform skill package manager for AI coding agents, fully compatible with `npx skills` CLI.
 
-## 特性
+## Features
 
-- ✅ **智能 .env 管理** — 三级备份策略，更新时自动合并新配置
-- ✅ **平台自动检测** — 根据项目目录自动识别目标平台
-- ✅ **统一目录结构** — `~/.agents/` 集中管理所有 skill 和配置
-- ✅ **原子化操作** — 安装失败自动回滚，保证数据完整性
-- ✅ **诊断工具** — `doctor` 命令快速排查配置问题
+- ✅ **Smart .env Management** — Auto backup/restore environment variables during updates
+- ✅ **Multi-Platform Support** — Claude Code, Cursor, Cline, Windsurf, OpenCode
+- ✅ **npx skills Compatible** — Drop-in replacement with same command interface
+- ✅ **Unified Directory** — Centralized management in `~/.agents/`
+- ✅ **Atomic Operations** — Auto rollback on failure
+- ✅ **Diagnostic Tools** — Built-in `doctor` command
 
-## 安装
+## Installation
 
 ```bash
 npm install -g skill-manager
 ```
 
-或直接使用：
+Or use directly:
 
 ```bash
-npx skill-manager install <skill-source>
+npx skill-manager add <source>
 ```
 
-## 快速开始
+## Quick Start
 
-### 安装 Skill
+### Install Skills
 
 ```bash
-# 从 GitHub 安装
-skill-manager install https://github.com/user/skill-name
+# From GitHub
+skill-manager add owner/repo
+skill-manager add https://github.com/user/skill
 
-# 从本地路径安装
-skill-manager install ./local-skill
+# From local path
+skill-manager add ./local-skill
 
-# 指定目标平台
-skill-manager install https://github.com/user/skill --agent=cursor
+# Specify target agent
+skill-manager add owner/repo -a claude-code cursor
 
-# 使用复制而非符号链接（Windows 推荐）
-skill-manager install https://github.com/user/skill --copy
+# Copy mode (recommended for Windows)
+skill-manager add owner/repo --copy
 ```
 
-### 管理环境变量
+### Manage Environment Variables
 
 ```bash
-# 查看所有 skill 的配置状态
+# List all skills with env status
 skill-manager env list
 
-# 设置环境变量
-skill-manager env set tavily-web TAVILY_API_KEY=your_key_here
+# Set environment variable
+skill-manager env set my-skill API_KEY=your_key
 
-# 用编辑器打开 .env 文件
-skill-manager env edit tavily-web
+# Edit .env file
+skill-manager env edit my-skill
 ```
 
-### 更新和删除
+### Update and Remove
 
 ```bash
-# 更新 skill（自动保护 .env）
-skill-manager update tavily-web
+# Update skill (auto preserves .env)
+skill-manager update my-skill
 
-# 删除 skill
-skill-manager remove tavily-web
+# Remove skill
+skill-manager remove my-skill
 
-# 删除 skill 并清除配置
-skill-manager remove tavily-web --purge
+# Remove with config purge
+skill-manager remove my-skill --purge
 ```
 
-### 查看信息
+### Other Commands
 
 ```bash
-# 列出所有已安装的 skill
+# List installed skills
 skill-manager list
 
-# 查看 skill 详细信息
-skill-manager info tavily-web
+# Search for skills
+skill-manager find "code review"
 
-# 运行诊断
+# Check for updates
+skill-manager check
+
+# Create new skill template
+skill-manager init my-new-skill
+
+# Show skill details
+skill-manager info my-skill
+
+# Run diagnostics
 skill-manager doctor
 ```
 
-## 目录结构
+## Command Aliases
+
+All `npx skills` commands work:
+
+```bash
+skill-manager add       # or: a, install, i
+skill-manager remove    # or: rm, r
+skill-manager list      # or: ls
+skill-manager find      # or: search, f, s
+skill-manager update    # or: upgrade
+```
+
+## Directory Structure
 
 ```
 ~/.agents/
-├── config/                    # 持久化配置（.env 文件）
-│   ├── tavily-web/.env
-│   └── exa-search/.env
-├── skills/                    # Skill 代码（canonical 存储）
-│   ├── tavily-web/
-│   └── exa-search/
-└── registry.json              # 已安装 skill 索引
+├── config/              # Persistent configs (.env files)
+│   ├── my-skill/.env
+│   └── other-skill/.env
+├── skills/              # Skill code (canonical storage)
+│   ├── my-skill/
+│   └── other-skill/
+└── registry.json        # Installed skills index
 
 <project>/
-└── .claude/skills/            # Agent 目录（符号链接）
-    ├── tavily-web -> ~/.agents/skills/tavily-web
-    └── exa-search -> ~/.agents/skills/exa-search
+└── .claude/skills/      # Agent directory (symlinks)
+    ├── my-skill -> ~/.agents/skills/my-skill
+    └── other-skill -> ~/.agents/skills/other-skill
 ```
 
-## .env 保护机制
+## .env Protection
 
-### 备份优先级
+### Backup Priority
 
-安装/更新时按以下顺序查找现有配置：
+During install/update, searches for existing config in order:
 
-1. `~/.agents/config/<skill>/.env` （持久化位置，最高优先级）
-2. `.claude/skills/<skill>/.env` （当前项目）
-3. `~/.agents/skills/<skill>/.env` （canonical 位置）
+1. `~/.agents/config/<skill>/.env` (persistent, highest priority)
+2. `.claude/skills/<skill>/.env` (current project)
+3. `~/.agents/skills/<skill>/.env` (canonical location)
 
-### 恢复策略
+### Restore Strategy
 
-- 用户已有的 `KEY=VALUE` **绝不覆盖**
-- `.env.example` 中新增的 key 追加到末尾，值留空并加注释
-- 保留用户的注释行
+- Existing `KEY=VALUE` pairs are **never overwritten**
+- New keys from `.env.example` are appended with empty values
+- User comments are preserved
 
-### 双写机制
+## Supported Platforms
 
-为兼容现有 API 脚本（使用 `path.join(__dirname, '.env')` 加载），.env 同时写入：
-
-- `~/.agents/config/<skill>/.env` （持久化）
-- `<skill-dir>/.env` （兼容现有脚本）
-
-## 支持的平台
-
-| 平台 | 检测标识 | Skills 目录 |
-|------|---------|------------|
+| Platform | Detection | Skills Directory |
+|----------|-----------|------------------|
 | Claude Code | `.claude/` | `.claude/skills/` |
 | Cursor | `.cursor/` | `.cursor/skills/` |
 | Cline | `.cline/` | `.cline/skills/` |
 | Windsurf | `.windsurf/` | `.windsurf/skills/` |
 | OpenCode | `~/.config/opencode/` | `.opencode/skills/` |
 
-## 开发
+## Development
 
 ```bash
-# 克隆仓库
-git clone https://github.com/user/skill-manager.git
+# Clone repository
+git clone https://github.com/yourusername/skill-manager.git
 cd skill-manager
 
-# 安装依赖
+# Install dependencies
 npm install
 
-# 开发模式
+# Development mode
 npm run dev
 
-# 构建
+# Build
 npm run build
 
-# 类型检查
+# Type check
 npm run lint
 
-# 测试
+# Test
 npm test
 ```
 
-## 与 `npx skills` 的对比
+## vs npx skills
 
-| 特性 | npx skills | skill-manager |
-|------|-----------|---------------|
-| .env 保护 | ❌ 每次更新被删除 | ✅ 自动备份恢复 |
-| 跨平台支持 | ❌ 仅 Claude Code | ✅ 5 个平台 |
-| 配置管理 | ❌ 无 | ✅ env 子命令 |
-| 诊断工具 | ❌ 无 | ✅ doctor 命令 |
-| 符号链接 | ✅ | ✅ + 复制模式 |
-| Git 安装 | ✅ | ✅ |
-| 本地安装 | ✅ | ✅ |
+| Feature | npx skills | skill-manager |
+|---------|-----------|---------------|
+| .env Protection | ❌ Deleted on update | ✅ Auto backup/restore |
+| Multi-Platform | ❌ Claude Code only | ✅ 5 platforms |
+| Config Management | ❌ None | ✅ env commands |
+| Diagnostics | ❌ None | ✅ doctor command |
+| Symlinks | ✅ | ✅ + copy mode |
+| Git Install | ✅ | ✅ |
+| Local Install | ✅ | ✅ |
 
-## 常见问题
+## FAQ
 
-### Q: 为什么需要 skill-manager？
+### Why skill-manager?
 
-A: `npx skills add` 在安装/更新时会执行 `rm -rf`，导致 `.env` 文件被删除，用户每次更新后需要重新配置 API Key。skill-manager 通过智能备份机制彻底解决这个问题。
+`npx skills add` executes `rm -rf` during install/update, deleting `.env` files. Users must reconfigure API keys after every update. skill-manager solves this with intelligent backup.
 
-### Q: 可以和 `npx skills` 共存吗？
+### Can it coexist with npx skills?
 
-A: 可以。skill-manager 使用独立的 `~/.agents/` 目录，不会影响现有的 skill 安装。
+Yes. skill-manager uses separate `~/.agents/` directory and won't affect existing installations.
 
-### Q: Windows 上符号链接失败怎么办？
+### Symlink fails on Windows?
 
-A: 使用 `--copy` 参数：`skill-manager install <source> --copy`
+Use `--copy` flag: `skill-manager add <source> --copy`
 
-### Q: 如何迁移现有的 skill？
+### How to migrate existing skills?
 
-A: 直接用 skill-manager 重新安装即可，它会自动检测并保留现有的 .env 配置。
+Simply reinstall with skill-manager. It will auto-detect and preserve existing `.env` configs.
 
-## 许可证
+## License
 
 MIT
 
-## 作者
+## Author
 
 BenedictKing
 
-## 贡献
+## Contributing
 
-欢迎提交 Issue 和 Pull Request！
+Issues and Pull Requests are welcome!
