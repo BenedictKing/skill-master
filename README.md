@@ -1,6 +1,6 @@
 # skill-master
 
-[中文文档](./README.zh-CN.md)
+English | [简体中文](./README.zh-CN.md)
 
 Cross-platform skill package manager for AI coding agents, fully compatible with `npx skills` CLI.
 

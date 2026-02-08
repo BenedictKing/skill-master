@@ -1,5 +1,7 @@
 # skill-master
 
+[English](./README.md) | 简体中文
+
 跨平台 Skill 包管理器，解决 `npx skills` 的两大核心问题：
 
 1. **保护 .env 配置** — 安装/更新时自动备份和恢复环境变量，不再丢失 API Key
