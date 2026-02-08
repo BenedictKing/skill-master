@@ -1,100 +1,79 @@
 import type { AgentPlatform, Capability } from '../types/index.js';
 
 /**
- * Capability mapping: maps abstract capabilities to platform-specific tool names.
- * null means the platform does not support that capability.
+ * Sparse capability mapping: only agents with known tool names are listed.
+ * Agents not present here return null for all capabilities.
  */
-export const CAPABILITY_MAP: Record<Capability, Record<AgentPlatform, string | null>> = {
-  shell: {
-    'claude-code': 'Bash',
-    'opencode': 'bash',
-    'cursor': 'run_terminal_cmd',
-    'cline': 'execute_command',
-    'windsurf': 'RunCommand',
+const AGENT_CAPABILITIES: Partial<Record<AgentPlatform, Partial<Record<Capability, string>>>> = {
+  'claude-code': {
+    shell: 'Bash',
+    read_file: 'Read',
+    write_file: 'Write',
+    edit_file: 'Edit',
+    find_file: 'Glob',
+    search_content: 'Grep',
+    sub_task: 'Task',
+    web_fetch: 'WebFetch',
+    web_search: 'WebSearch',
   },
-  read_file: {
-    'claude-code': 'Read',
-    'opencode': 'read',
-    'cursor': 'read_file',
-    'cline': 'read_file',
-    'windsurf': 'ReadFile',
+  opencode: {
+    shell: 'bash',
+    read_file: 'read',
+    write_file: 'write',
+    edit_file: 'edit',
+    find_file: 'glob',
+    search_content: 'grep',
   },
-  write_file: {
-    'claude-code': 'Write',
-    'opencode': 'write',
-    'cursor': 'write_to_file',
-    'cline': 'write_to_file',
-    'windsurf': 'WriteFile',
+  cursor: {
+    shell: 'run_terminal_cmd',
+    read_file: 'read_file',
+    write_file: 'write_to_file',
+    edit_file: 'edit_file',
+    find_file: 'list_dir',
+    search_content: 'grep_search',
   },
-  edit_file: {
-    'claude-code': 'Edit',
-    'opencode': 'edit',
-    'cursor': 'edit_file',
-    'cline': 'replace_in_file',
-    'windsurf': 'EditFile',
+  cline: {
+    shell: 'execute_command',
+    read_file: 'read_file',
+    write_file: 'write_to_file',
+    edit_file: 'replace_in_file',
+    find_file: 'list_files',
+    search_content: 'search_files',
   },
-  find_file: {
-    'claude-code': 'Glob',
-    'opencode': 'glob',
-    'cursor': 'list_dir',
-    'cline': 'list_files',
-    'windsurf': 'ListDir',
-  },
-  search_content: {
-    'claude-code': 'Grep',
-    'opencode': 'grep',
-    'cursor': 'grep_search',
-    'cline': 'search_files',
-    'windsurf': 'Search',
-  },
-  sub_task: {
-    'claude-code': 'Task',
-    'opencode': null,
-    'cursor': null,
-    'cline': null,
-    'windsurf': null,
-  },
-  web_fetch: {
-    'claude-code': 'WebFetch',
-    'opencode': null,
-    'cursor': null,
-    'cline': null,
-    'windsurf': null,
-  },
-  web_search: {
-    'claude-code': 'WebSearch',
-    'opencode': null,
-    'cursor': null,
-    'cline': null,
-    'windsurf': null,
+  windsurf: {
+    shell: 'RunCommand',
+    read_file: 'ReadFile',
+    write_file: 'WriteFile',
+    edit_file: 'EditFile',
+    find_file: 'ListDir',
+    search_content: 'Search',
   },
 };
+
+/** Get the tool name for a capability on a specific platform */
+export function getToolName(capability: Capability, platform: AgentPlatform): string | null {
+  return AGENT_CAPABILITIES[platform]?.[capability] ?? null;
+}
 
 /** Build a reverse map: tool name → capability for a given platform */
 export function buildReverseMap(platform: AgentPlatform): Record<string, Capability> {
   const reverse: Record<string, Capability> = {};
-  for (const [cap, platformMap] of Object.entries(CAPABILITY_MAP)) {
-    const toolName = platformMap[platform];
-    if (toolName) {
+  const caps = AGENT_CAPABILITIES[platform];
+  if (caps) {
+    for (const [cap, toolName] of Object.entries(caps)) {
       reverse[toolName] = cap as Capability;
     }
   }
   return reverse;
 }
 
-/** Get the tool name for a capability on a specific platform */
-export function getToolName(capability: Capability, platform: AgentPlatform): string | null {
-  return CAPABILITY_MAP[capability][platform];
-}
-
 /** Check if a platform supports a given capability */
 export function isCapabilitySupported(capability: Capability, platform: AgentPlatform): boolean {
-  return CAPABILITY_MAP[capability][platform] !== null;
+  return getToolName(capability, platform) !== null;
 }
 
 /** Get all capabilities supported by a platform */
 export function getSupportedCapabilities(platform: AgentPlatform): Capability[] {
-  return (Object.entries(CAPABILITY_MAP) as Array<[Capability, Record<AgentPlatform, string | null>]>)
-    .filter(([, map]) => map[platform] !== null)
-    .map(([cap]) => cap);
+  const caps = AGENT_CAPABILITIES[platform];
+  return caps ? (Object.keys(caps) as Capability[]) : [];
 }

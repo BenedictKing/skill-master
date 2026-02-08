@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Expand agent support from 5 to 39 platforms by centralizing agent config in `src/platform/agents.ts`
+- Refactor `detector.ts` and `paths.ts` to re-export from `agents.ts`, eliminating 3 duplicate skillsDir mappings
+- Convert `capability-map.ts` from full matrix to sparse mapping, gracefully handling agents without known tool names
+- Derive `AgentPlatform` type from `AGENTS` constant instead of hardcoded union type
+
+### Added
+- New agents: amp, antigravity, augment, openclaw, codebuddy, codex, command-code, continue, crush, droid, gemini-cli, github-copilot, goose, junie, iflow-cli, kilo, kimi-cli, kiro-cli, kode, mcpjam, mistral-vibe, mux, openhands, pi, qoder, qwen-code, replit, roo, trae, trae-cn, zencoder, neovate, pochi, adal
+
 ## [0.1.1] - 2026-02-08
 
 ### Fixed

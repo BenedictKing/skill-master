@@ -1,6 +1,5 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentPlatform } from '../types/index.js';
 
 /** Root directory for all skill-master data */
 export const AGENTS_HOME = join(homedir(), '.agents');
@@ -24,25 +23,5 @@ export function getSkillConfigPath(name: string): string {
   return join(CONFIG_DIR, name);
 }
 
-/** Platform-specific skill directory mappings */
-const AGENT_SKILL_DIRS: Record<AgentPlatform, string> = {
-  'claude-code': '.claude/skills',
-  'opencode': '.opencode/skills',
-  'cursor': '.cursor/skills',
-  'cline': '.cline/skills',
-  'windsurf': '.windsurf/skills',
-};
-
-/** Get the agent-specific skill installation path */
-export function getAgentSkillPath(
-  cwd: string,
-  agent: AgentPlatform,
-  name: string,
-): string {
-  return join(cwd, AGENT_SKILL_DIRS[agent], name);
-}
-
-/** Get the agent skills root directory */
-export function getAgentSkillsRoot(cwd: string, agent: AgentPlatform): string {
-  return join(cwd, AGENT_SKILL_DIRS[agent]);
-}
+// Re-export from agents.ts — eliminates duplicate AGENT_SKILL_DIRS mapping
+export { getAgentSkillPath, getAgentSkillsRoot } from '../platform/agents.js';

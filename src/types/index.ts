@@ -1,5 +1,7 @@
+import type { AgentPlatform } from '../platform/agents.js';
+
 /** Platform identifiers for supported AI coding agents */
-export type AgentPlatform = 'claude-code' | 'opencode' | 'cursor' | 'cline' | 'windsurf';
+export type { AgentPlatform };
 
 /** Abstract capability identifiers (platform-agnostic) */
 export type Capability =
