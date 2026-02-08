@@ -7,7 +7,7 @@ import * as logger from '../utils/logger.js';
 
 const execFileAsync = promisify(execFile);
 
-/** Check if a string looks like a git URL */
+/** Check if a string looks like a git URL or GitHub shorthand (owner/repo) */
 export function isGitUrl(source: string): boolean {
   return (
     source.startsWith('https://') ||
@@ -15,7 +15,8 @@ export function isGitUrl(source: string): boolean {
     source.startsWith('git@') ||
     source.startsWith('git://') ||
     source.includes('github.com/') ||
-    source.includes('gitlab.com/')
+    source.includes('gitlab.com/') ||
+    /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(source)
   );
 }
 
