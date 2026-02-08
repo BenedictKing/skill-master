@@ -7,16 +7,31 @@
   "bin": {
     "skill-manager": "./bin/skill-manager.mjs"
   },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",
     "test:run": "vitest run",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run lint && npm run build"
   },
-  "keywords": ["skill", "manager", "claude-code", "opencode", "cursor", "cline", "agent"],
+  "keywords": ["skill", "manager", "claude-code", "opencode", "cursor", "cline", "agent", "ai", "skills"],
   "author": "BenedictKing",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/skill-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/skill-manager/issues"
+  },
+  "homepage": "https://github.com/yourusername/skill-manager#readme",
   "engines": {
     "node": ">=18"
   },
