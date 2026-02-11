@@ -27,6 +27,12 @@ export async function check(_args: string[]): Promise<void> {
       continue;
     }
 
+    // Skip version check for skills without version info
+    if (!entry.version) {
+      logger.info(`${name}: no version info — skipped`);
+      continue;
+    }
+
     try {
       const remoteHead = await getRemoteHead(entry.source);
       if (!remoteHead) {

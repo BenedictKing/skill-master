@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-02-11
+
+### Changed
+- Relax SKILL.md frontmatter validation to support Claude Code native skill format — only `name` is required, `version` and `allowed-tools` are now optional
+- `SkillFrontmatter` type: `version`, `author`, `description`, `allowed-tools`, `user-invocable` all become optional
+- `RegistryEntry.version` becomes optional to accommodate skills without version info
+- `validateFrontmatter` now only type-checks fields when present instead of requiring them
+- `parseSkillMd` infers skill name from directory name when `name` field is missing
+
+### Added
+- Support for Claude Code native optional frontmatter fields: `disable-model-invocation`, `argument-hint`, `model`, `agent`, `hooks`
+- `findSkillDirectory` now searches one-level subdirectories for SKILL.md (enables repos with nested skill layouts)
+- Null-safe handling across `installer.ts`, `list.ts`, `info.ts`, `check.ts` for optional `version` field
+
 ## [0.1.3] - 2026-02-08
 
 ### Changed

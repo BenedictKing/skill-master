@@ -26,13 +26,19 @@ export interface SkillSource {
 /** SKILL.md frontmatter fields */
 export interface SkillFrontmatter {
   name: string;
-  version: string;
-  author: string;
-  description: string;
-  'allowed-tools': string[];
-  'user-invocable': boolean;
+  version?: string;
+  author?: string;
+  description?: string;
+  'allowed-tools'?: string[];
+  'user-invocable'?: boolean;
   context?: 'fork';
   capabilities?: Capability[];
+  /** Claude Code native optional fields */
+  'disable-model-invocation'?: boolean;
+  'argument-hint'?: string;
+  model?: string;
+  agent?: string;
+  hooks?: Record<string, unknown>;
 }
 
 /** Parsed SKILL.md: frontmatter + markdown body */
@@ -56,7 +62,7 @@ export interface InstallOptions {
 /** A single entry in the registry */
 export interface RegistryEntry {
   source: string;
-  version: string;
+  version?: string;
   installed_at: string;
   updated_at: string;
   agent: AgentPlatform;

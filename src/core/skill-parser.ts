@@ -1,6 +1,6 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readTextSafe } from '../utils/fs-helpers.js';
 import { SkillParseError } from '../utils/errors.js';
@@ -20,7 +20,7 @@ const TOOL_CAPABILITY_MAP: Record<string, Capability> = {
 };
 
 /** Parse a SKILL.md file content into frontmatter + body */
-export function parseSkillMd(content: string): ParsedSkill {
+export function parseSkillMd(content: string, dirName?: string): ParsedSkill {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!match) {
     throw new SkillParseError('No valid frontmatter block found');
@@ -38,19 +38,28 @@ export function parseSkillMd(content: string): ParsedSkill {
 
   validateFrontmatter(frontmatter);
 
+  // Infer name from directory if not provided in frontmatter
+  if (!frontmatter.name && dirName) {
+    frontmatter.name = dirName;
+  }
+
+  if (!frontmatter.name) {
+    throw new SkillParseError('Missing "name" field and unable to infer from directory');
+  }
+
   return { frontmatter, body, rawFrontmatter };
 }
 
 /** Validate required frontmatter fields */
 export function validateFrontmatter(fm: SkillFrontmatter): void {
-  if (!fm.name || typeof fm.name !== 'string') {
-    throw new SkillParseError('Missing or invalid "name" field');
+  if (fm.name !== undefined && typeof fm.name !== 'string') {
+    throw new SkillParseError('Invalid "name" field — must be a string');
   }
-  if (!fm.version || typeof fm.version !== 'string') {
-    throw new SkillParseError('Missing or invalid "version" field');
+  if (fm.version !== undefined && typeof fm.version !== 'string') {
+    throw new SkillParseError('Invalid "version" field — must be a string');
   }
-  if (!Array.isArray(fm['allowed-tools']) || fm['allowed-tools'].length === 0) {
-    throw new SkillParseError('Missing or empty "allowed-tools" field');
+  if (fm['allowed-tools'] !== undefined && !Array.isArray(fm['allowed-tools'])) {
+    throw new SkillParseError('Invalid "allowed-tools" field — must be an array');
   }
 }
 
@@ -81,22 +90,35 @@ export async function findSkillDirectory(dir: string): Promise<string | null> {
 
   // Search in .claude/skills/*/SKILL.md
   const skillsRoot = join(dir, '.claude', 'skills');
-  if (!existsSync(skillsRoot)) {
-    return null;
+  if (existsSync(skillsRoot)) {
+    try {
+      const entries = await readdir(skillsRoot, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const skillMdPath = join(skillsRoot, entry.name, 'SKILL.md');
+          if (existsSync(skillMdPath)) {
+            return join(skillsRoot, entry.name);
+          }
+        }
+      }
+    } catch {
+      // continue to next search strategy
+    }
   }
 
+  // Step 3: Search one-level subdirectories for SKILL.md (skip hidden dirs)
   try {
-    const entries = await readdir(skillsRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const skillMdPath = join(skillsRoot, entry.name, 'SKILL.md');
+    const topEntries = await readdir(dir, { withFileTypes: true });
+    for (const entry of topEntries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        const skillMdPath = join(dir, entry.name, 'SKILL.md');
         if (existsSync(skillMdPath)) {
-          return join(skillsRoot, entry.name);
+          return join(dir, entry.name);
         }
       }
     }
   } catch {
-    return null;
+    // ignore
   }
 
   return null;
@@ -106,7 +128,7 @@ export async function findSkillDirectory(dir: string): Promise<string | null> {
 export async function readSkillMd(dir: string): Promise<ParsedSkill | null> {
   const content = await readTextSafe(join(dir, 'SKILL.md'));
   if (!content) return null;
-  return parseSkillMd(content);
+  return parseSkillMd(content, basename(dir));
 }
 
 /** Extract env keys from a .env.example file */

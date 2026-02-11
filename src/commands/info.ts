@@ -21,7 +21,7 @@ export async function info(args: string[]): Promise<void> {
 
     logger.blank();
     logger.info(`Skill: ${skillName}`);
-    logger.kv('Version', entry.version);
+    logger.kv('Version', entry.version ?? '-');
     logger.kv('Platform', entry.agent);
     logger.kv('Source', entry.source);
     logger.kv('Installed', new Date(entry.installed_at).toLocaleString());

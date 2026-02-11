@@ -70,7 +70,7 @@ export async function list(args: string[] = []): Promise<void> {
 
   for (const [name, entry] of entries) {
     const date = new Date(entry.installed_at).toLocaleDateString();
-    logger.tableRow(name, entry.version, entry.agent, date);
+    logger.tableRow(name, entry.version ?? '-', entry.agent, date);
   }
   logger.blank();
 }

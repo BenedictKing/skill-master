@@ -57,7 +57,7 @@ export async function installSkill(options: InstallOptions): Promise<void> {
     throw new SkillParseError('Failed to read SKILL.md');
   }
   const skillName = parsed.frontmatter.name;
-  logger.info(`Found skill: ${skillName} v${parsed.frontmatter.version}`);
+  logger.info(`Found skill: ${skillName}${parsed.frontmatter.version ? ` v${parsed.frontmatter.version}` : ''}`);
 
   // Step 4: Detect agent platform
   logger.step(4, TOTAL_STEPS, 'Detecting agent platform...');
@@ -106,7 +106,7 @@ export async function installSkill(options: InstallOptions): Promise<void> {
 
   // Step 9: Update registry
   logger.step(9, TOTAL_STEPS, 'Updating registry...');
-  const capabilities = parsed.frontmatter.capabilities ?? inferCapabilities(parsed.frontmatter['allowed-tools']);
+  const capabilities = parsed.frontmatter.capabilities ?? inferCapabilities(parsed.frontmatter['allowed-tools'] ?? []);
 
   // Extract env keys from .env.example
   const envExampleContent = await readTextSafe(join(canonicalPath, '.env.example'));
