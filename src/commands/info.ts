@@ -22,12 +22,17 @@ export async function info(args: string[]): Promise<void> {
     logger.blank();
     logger.info(`Skill: ${skillName}`);
     logger.kv('Version', entry.version ?? '-');
-    logger.kv('Platform', entry.agent);
+    logger.kv('Platform(s)', entry.agents.map(a => a.agent).join(', '));
     logger.kv('Source', entry.source);
     logger.kv('Installed', new Date(entry.installed_at).toLocaleString());
     logger.kv('Updated', new Date(entry.updated_at).toLocaleString());
     logger.kv('Canonical Path', entry.canonical_path);
-    logger.kv('Agent Path', entry.agent_path);
+
+    // Show all agent paths
+    for (const a of entry.agents) {
+      logger.kv(`  ${a.agent} Path`, `${a.agent_path}${a.global ? ' (global)' : ''}`);
+    }
+
     logger.kv('Capabilities', entry.capabilities.join(', '));
     logger.kv('Env Keys', entry.env_keys.join(', ') || 'none');
     logger.kv('Env Status', envStatus);

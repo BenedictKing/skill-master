@@ -87,8 +87,16 @@ export async function findSkillDirectory(dir: string): Promise<string | null> {
   return dirs.length > 0 ? dirs[0] : null;
 }
 
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build']);
+
 /** Discover all directories containing SKILL.md within a source */
-export async function findAllSkillDirectories(dir: string): Promise<string[]> {
+export async function findAllSkillDirectories(dir: string, fullDepth = false): Promise<string[]> {
+  if (fullDepth) {
+    const results = new Set<string>();
+    await walkForSkills(dir, 0, 5, results);
+    return [...results];
+  }
+
   const results: string[] = [];
 
   // Direct SKILL.md in root
@@ -131,6 +139,26 @@ export async function findAllSkillDirectories(dir: string): Promise<string[]> {
   }
 
   return results;
+}
+
+/** Recursively walk directories up to maxDepth looking for SKILL.md */
+async function walkForSkills(dir: string, depth: number, maxDepth: number, results: Set<string>): Promise<void> {
+  if (depth > maxDepth) return;
+
+  if (existsSync(join(dir, 'SKILL.md'))) {
+    results.add(dir);
+  }
+
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.') && !SKIP_DIRS.has(entry.name)) {
+        await walkForSkills(join(dir, entry.name), depth + 1, maxDepth, results);
+      }
+    }
+  } catch {
+    // ignore permission errors etc.
+  }
 }
 
 /** Read and parse a SKILL.md from a directory */

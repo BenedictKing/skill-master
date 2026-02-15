@@ -57,7 +57,9 @@ export async function list(args: string[] = []): Promise<void> {
 
   // Filter by agent if specified
   if (flags.agent.length > 0) {
-    entries = entries.filter(([, entry]) => flags.agent.includes(entry.agent));
+    entries = entries.filter(([, entry]) =>
+      entry.agents.some(a => flags.agent.includes(a.agent))
+    );
   }
 
   if (entries.length === 0) {
@@ -66,11 +68,12 @@ export async function list(args: string[] = []): Promise<void> {
   }
 
   logger.blank();
-  logger.tableHeader('Skill', 'Version', 'Platform', 'Installed');
+  logger.tableHeader('Skill', 'Version', 'Platform(s)', 'Installed');
 
   for (const [name, entry] of entries) {
     const date = new Date(entry.installed_at).toLocaleDateString();
-    logger.tableRow(name, entry.version ?? '-', entry.agent, date);
+    const platforms = entry.agents.map(a => a.agent).join(', ');
+    logger.tableRow(name, entry.version ?? '-', platforms, date);
   }
   logger.blank();
 }

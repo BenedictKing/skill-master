@@ -1,8 +1,9 @@
-import { getRegistryEntry, removeFromRegistry, listRegistry } from '../core/registry.js';
+import { getRegistryEntry, removeFromRegistry, removeAgentFromRegistry, listRegistry } from '../core/registry.js';
 import { removePath } from '../utils/fs-helpers.js';
 import { getSkillCanonicalPath, getSkillConfigPath, getAgentGlobalSkillPath } from '../utils/paths.js';
 import * as logger from '../utils/logger.js';
 import { SkillNotFoundError } from '../utils/errors.js';
+import type { AgentPlatform } from '../types/index.js';
 
 export interface RemoveFlags {
   global: boolean;
@@ -166,29 +167,50 @@ export async function remove(args: string[]): Promise<void> {
 
       logger.info(`Removing skill: ${skillName}`);
 
-      // Remove agent directory link/copy
-      if (flags.global) {
-        // When --global, remove from global skills directory
-        const globalPath = getAgentGlobalSkillPath(entry.agent, skillName);
-        await removePath(globalPath);
-        logger.success(`Removed from ${globalPath}`);
+      if (flags.agent.length > 0) {
+        // Remove only specified agent(s)
+        for (const agentName of flags.agent) {
+          const agentRecord = entry.agents.find(a => a.agent === agentName);
+          if (!agentRecord) {
+            logger.warn(`Agent "${agentName}" not found for skill "${skillName}"`);
+            continue;
+          }
+          await removePath(agentRecord.agent_path);
+          logger.success(`Removed ${agentName} path: ${agentRecord.agent_path}`);
+          await removeAgentFromRegistry(skillName, agentName as AgentPlatform);
+        }
+
+        // Check if all agents removed — if so, clean up canonical
+        const updated = await getRegistryEntry(skillName);
+        if (!updated) {
+          await removePath(entry.canonical_path);
+          logger.success(`Removed canonical path: ${entry.canonical_path}`);
+          if (flags.purge) {
+            await removePath(getSkillConfigPath(skillName));
+            logger.success('Purged config directory');
+          }
+        }
       } else {
-        await removePath(entry.agent_path);
-        logger.success(`Removed from ${entry.agent_path}`);
+        // Remove all agent paths
+        for (const agentRecord of entry.agents) {
+          await removePath(agentRecord.agent_path);
+          logger.success(`Removed ${agentRecord.agent} path: ${agentRecord.agent_path}`);
+        }
+
+        // Remove canonical directory
+        await removePath(entry.canonical_path);
+        logger.success(`Removed canonical path: ${entry.canonical_path}`);
+
+        // Optionally purge config
+        if (flags.purge) {
+          await removePath(getSkillConfigPath(skillName));
+          logger.success('Purged config directory');
+        }
+
+        // Remove entire registry entry
+        await removeFromRegistry(skillName);
       }
 
-      // Remove canonical directory
-      await removePath(entry.canonical_path);
-      logger.success(`Removed from ${entry.canonical_path}`);
-
-      // Optionally purge config
-      if (flags.purge) {
-        await removePath(getSkillConfigPath(skillName));
-        logger.success('Purged config directory');
-      }
-
-      // Update registry
-      await removeFromRegistry(skillName);
       logger.success(`Skill "${skillName}" removed successfully!`);
     }
   } catch (err) {

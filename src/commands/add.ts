@@ -1,11 +1,11 @@
 import { installSkill } from '../core/installer.js';
-import { cloneRepo, isGitUrl } from '../core/git-source.js';
+import { cloneRepo, parseSource } from '../core/git-source.js';
 import { findAllSkillDirectories, readSkillMd } from '../core/skill-parser.js';
 import { SkillNotFoundError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
 import type { SkillSource, AgentPlatform } from '../types/index.js';
 import { existsSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 
 export interface AddFlags {
   global: boolean;
@@ -75,7 +75,6 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
 
       case '-a':
       case '--agent':
-        // Consume following non-flag args as agent names
         i++;
         while (i < args.length && !args[i].startsWith('-')) {
           flags.agent.push(args[i]);
@@ -85,7 +84,6 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
 
       case '-s':
       case '--skill':
-        // Consume following non-flag args as skill names
         i++;
         while (i < args.length && !args[i].startsWith('-')) {
           flags.skill.push(args[i]);
@@ -184,24 +182,56 @@ export async function add(args: string[]): Promise<void> {
 
   const cwd = process.cwd();
 
-  // Resolve source directory (clone once for git sources)
-  let sourceDir: string;
-  const isGit = isGitUrl(source);
+  // Parse source string into structured form
+  const parsed = parseSource(source);
 
-  if (isGit) {
+  // Merge skillFilter from source (e.g. owner/repo@skill) into flags.skill
+  if (parsed.skillFilter && !flags.skill.includes(parsed.skillFilter)) {
+    flags.skill.push(parsed.skillFilter);
+  }
+
+  // Resolve source directory
+  let sourceDir: string;
+
+  if (parsed.type === 'git') {
     logger.step(1, 9, 'Fetching skill source...');
-    sourceDir = await cloneRepo(source);
+    sourceDir = await cloneRepo(parsed.url!, parsed.ref);
+    // Narrow to subpath if specified
+    if (parsed.subpath) {
+      const sub = join(sourceDir, parsed.subpath);
+      if (existsSync(sub)) {
+        sourceDir = sub;
+      }
+    }
   } else {
-    sourceDir = source;
+    sourceDir = parsed.path!;
     if (!existsSync(sourceDir)) {
       throw new SkillNotFoundError(sourceDir);
     }
   }
 
   // Discover all skill directories in the source
-  const allSkillDirs = await findAllSkillDirectories(sourceDir);
+  const allSkillDirs = await findAllSkillDirectories(sourceDir, flags.fullDepth);
   if (allSkillDirs.length === 0) {
     throw new SkillNotFoundError(`No SKILL.md found in ${sourceDir}`);
+  }
+
+  // --list mode: print discovered skills and exit
+  if (flags.list) {
+    logger.blank();
+    logger.tableHeader('Skill', 'Version', 'Description');
+    for (const dir of allSkillDirs) {
+      const sk = await readSkillMd(dir);
+      if (sk) {
+        logger.tableRow(
+          sk.frontmatter.name,
+          sk.frontmatter.version ?? '-',
+          sk.frontmatter.description ?? '-',
+        );
+      }
+    }
+    logger.blank();
+    return;
   }
 
   // Filter by --skill if specified
@@ -211,9 +241,9 @@ export async function add(args: string[]): Promise<void> {
     const filtered: string[] = [];
 
     for (const dir of allSkillDirs) {
-      const parsed = await readSkillMd(dir);
-      if (!parsed) continue;
-      const name = parsed.frontmatter.name.toLowerCase();
+      const sk = await readSkillMd(dir);
+      if (!sk) continue;
+      const name = sk.frontmatter.name.toLowerCase();
       const dirName = basename(dir).toLowerCase();
       if (requested.has(name) || requested.has(dirName)) {
         filtered.push(dir);
@@ -223,8 +253,8 @@ export async function add(args: string[]): Promise<void> {
     if (filtered.length === 0) {
       const available = [];
       for (const dir of allSkillDirs) {
-        const parsed = await readSkillMd(dir);
-        if (parsed) available.push(parsed.frontmatter.name);
+        const sk = await readSkillMd(dir);
+        if (sk) available.push(sk.frontmatter.name);
       }
       logger.error(
         `No matching skills found for: ${flags.skill.join(', ')}\n` +

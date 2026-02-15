@@ -53,3 +53,11 @@ export class PlatformError extends SkillManagerError {
     this.name = 'PlatformError';
   }
 }
+
+/** Source string parsing failed */
+export class SourceParseError extends SkillManagerError {
+  constructor(source: string, detail?: string) {
+    super(`Failed to parse source "${source}"${detail ? ': ' + detail : ''}`);
+    this.name = 'SourceParseError';
+  }
+}

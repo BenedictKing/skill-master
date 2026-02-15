@@ -9,7 +9,7 @@ import { copyDir, removePath, symlinkOrCopy, ensureDir, readTextSafe } from '../
 import { getSkillCanonicalPath, getAgentSkillPath, getAgentGlobalSkillPath } from '../utils/paths.js';
 import * as logger from '../utils/logger.js';
 import { SkillNotFoundError, SkillParseError } from '../utils/errors.js';
-import type { InstallOptions, RegistryEntry } from '../types/index.js';
+import type { InstallOptions, RegistryEntry, AgentInstall } from '../types/index.js';
 
 const TOTAL_STEPS = 9;
 
@@ -117,16 +117,20 @@ export async function installSkill(options: InstallOptions): Promise<void> {
   const envKeys = envExampleContent ? extractEnvKeys(envExampleContent) : [];
 
   const now = new Date().toISOString();
+  const agentInstall: AgentInstall = {
+    agent,
+    agent_path: agentPath,
+    global: isGlobal,
+  };
   const entry: RegistryEntry = {
     source: source.type === 'git' ? source.url! : source.path!,
     version: parsed.frontmatter.version,
     installed_at: now,
     updated_at: now,
-    agent,
+    agents: [agentInstall],
     env_keys: envKeys,
     capabilities,
     canonical_path: canonicalPath,
-    agent_path: agentPath,
   };
 
   await updateRegistry(skillName, entry);

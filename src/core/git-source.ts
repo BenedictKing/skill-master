@@ -2,42 +2,139 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { ensureDir, createTempDir } from '../utils/fs-helpers.js';
-import { GitCloneError } from '../utils/errors.js';
+import { GitCloneError, SourceParseError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
+import type { ParsedSource } from '../types/index.js';
 
 const execFileAsync = promisify(execFile);
 
-/** Check if a string looks like a git URL or GitHub shorthand (owner/repo) */
-export function isGitUrl(source: string): boolean {
-  return (
-    source.startsWith('https://') ||
-    source.startsWith('http://') ||
-    source.startsWith('git@') ||
-    source.startsWith('git://') ||
-    source.includes('github.com/') ||
-    source.includes('gitlab.com/') ||
-    /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(source)
-  );
+/**
+ * Parse a source string into a structured ParsedSource.
+ * Supports:
+ * - owner/repo → git
+ * - owner/repo@skill → git + skillFilter
+ * - owner/repo/sub/path → git + subpath
+ * - github.com/o/r/tree/<ref>/<subpath> → git + ref + subpath
+ * - github.com/o/r/blob/<ref>/<path> → git + ref + subpath (parent dir)
+ * - gitlab.com/o/r/-/tree/<ref>/<subpath> → git + ref + subpath
+ * - Full URLs (https/git@/git://) → git
+ * - Local paths → local
+ */
+export function parseSource(source: string): ParsedSource {
+  // git@ or git:// protocols
+  if (source.startsWith('git@') || source.startsWith('git://')) {
+    return { type: 'git', url: source };
+  }
+
+  // Full HTTP(S) URLs
+  if (source.startsWith('https://') || source.startsWith('http://')) {
+    // GitHub tree URL: github.com/o/r/tree/<ref>/<subpath>
+    const ghTree = source.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)(?:\/(.+))?/);
+    if (ghTree) {
+      const url = `https://github.com/${ghTree[1]}/${ghTree[2]}.git`;
+      return { type: 'git', url, ref: ghTree[3], subpath: ghTree[4] };
+    }
+
+    // GitHub blob URL: github.com/o/r/blob/<ref>/<path> → parent dir as subpath
+    const ghBlob = source.match(/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)/);
+    if (ghBlob) {
+      const url = `https://github.com/${ghBlob[1]}/${ghBlob[2]}.git`;
+      const filePath = ghBlob[4];
+      const subpath = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : undefined;
+      return { type: 'git', url, ref: ghBlob[3], subpath };
+    }
+
+    // GitLab tree URL: gitlab.com/o/r/-/tree/<ref>/<subpath>
+    const glTree = source.match(/gitlab\.com\/([^/]+)\/([^/]+)\/-\/tree\/([^/]+)(?:\/(.+))?/);
+    if (glTree) {
+      const url = `https://gitlab.com/${glTree[1]}/${glTree[2]}.git`;
+      return { type: 'git', url, ref: glTree[3], subpath: glTree[4] };
+    }
+
+    // Plain github.com or gitlab.com URL
+    if (source.includes('github.com/') || source.includes('gitlab.com/')) {
+      return { type: 'git', url: source };
+    }
+
+    // Other https URLs — treat as git
+    return { type: 'git', url: source };
+  }
+
+  // Contains github.com or gitlab.com without protocol
+  if (source.includes('github.com/') || source.includes('gitlab.com/')) {
+    return parseSource('https://' + source);
+  }
+
+  // Local path — exists on filesystem
+  if (existsSync(source) || source.startsWith('/') || source.startsWith('./') || source.startsWith('../')) {
+    return { type: 'local', path: source };
+  }
+
+  // Shorthand: extract @skill filter first
+  let skillFilter: string | undefined;
+  let shorthand = source;
+  const atIdx = shorthand.indexOf('@');
+  if (atIdx > 0 && !shorthand.includes('/') === false) {
+    // Could be owner/repo@skill or owner/repo/path@skill
+    // Only treat as skillFilter if @ is after the repo part
+    const lastAt = shorthand.lastIndexOf('@');
+    if (lastAt > 0) {
+      const afterAt = shorthand.slice(lastAt + 1);
+      const beforeAt = shorthand.slice(0, lastAt);
+      // If afterAt has no slashes, it's a skill filter
+      if (afterAt && !afterAt.includes('/')) {
+        skillFilter = afterAt;
+        shorthand = beforeAt;
+      }
+    }
+  }
+
+  // owner/repo (exactly 2 segments)
+  if (/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(shorthand)) {
+    return {
+      type: 'git',
+      url: `https://github.com/${shorthand}.git`,
+      skillFilter,
+    };
+  }
+
+  // owner/repo/sub/path (3+ segments, first two are owner/repo)
+  const segments = shorthand.split('/');
+  if (segments.length >= 3 && /^[a-zA-Z0-9_.-]+$/.test(segments[0]) && /^[a-zA-Z0-9_.-]+$/.test(segments[1])) {
+    const owner = segments[0];
+    const repo = segments[1];
+    const subpath = segments.slice(2).join('/');
+    return {
+      type: 'git',
+      url: `https://github.com/${owner}/${repo}.git`,
+      subpath,
+      skillFilter,
+    };
+  }
+
+  throw new SourceParseError(source, 'Unable to determine source type');
 }
 
-/** Normalize a GitHub shorthand or URL to a full clone URL */
+/** Check if a string looks like a git URL or GitHub shorthand */
+export function isGitUrl(source: string): boolean {
+  try {
+    return parseSource(source).type === 'git';
+  } catch {
+    return false;
+  }
+}
+
+/** Normalize a source string to a full clone URL */
 export function normalizeGitUrl(source: string): string {
-  // Already a full URL
-  if (source.startsWith('https://') || source.startsWith('http://') ||
-      source.startsWith('git@') || source.startsWith('git://')) {
-    // Ensure .git suffix for HTTPS URLs
-    if (source.startsWith('https://') && !source.endsWith('.git')) {
-      return source + '.git';
-    }
-    return source;
-  }
+  const parsed = parseSource(source);
+  if (parsed.type !== 'git' || !parsed.url) return source;
 
-  // GitHub shorthand: owner/repo
-  if (/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(source)) {
-    return `https://github.com/${source}.git`;
+  let url = parsed.url;
+  // Ensure .git suffix for HTTPS URLs
+  if (url.startsWith('https://') && !url.endsWith('.git')) {
+    url += '.git';
   }
-
-  return source;
+  return url;
 }
 
 /** Parse a GitHub URL into owner and repo */

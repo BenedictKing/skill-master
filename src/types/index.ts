@@ -49,6 +49,16 @@ export interface ParsedSkill {
   rawFrontmatter: string;
 }
 
+/** Parsed source string — result of parseSource() */
+export interface ParsedSource {
+  type: 'git' | 'local';
+  url?: string;
+  path?: string;
+  ref?: string;
+  subpath?: string;
+  skillFilter?: string;
+}
+
 /** Options for the install command */
 export interface InstallOptions {
   source: SkillSource;
@@ -60,8 +70,27 @@ export interface InstallOptions {
   yes?: boolean;
 }
 
-/** A single entry in the registry */
+/** A single agent installation record (v2) */
+export interface AgentInstall {
+  agent: AgentPlatform;
+  agent_path: string;
+  global: boolean;
+}
+
+/** A single entry in the registry (v2) */
 export interface RegistryEntry {
+  source: string;
+  version?: string;
+  installed_at: string;
+  updated_at: string;
+  agents: AgentInstall[];
+  env_keys: string[];
+  capabilities: Capability[];
+  canonical_path: string;
+}
+
+/** V1 registry entry for migration */
+export interface RegistryEntryV1 {
   source: string;
   version?: string;
   installed_at: string;
@@ -75,7 +104,7 @@ export interface RegistryEntry {
 
 /** The complete registry structure */
 export interface Registry {
-  version: 1;
+  version: 1 | 2;
   skills: Record<string, RegistryEntry>;
 }
 

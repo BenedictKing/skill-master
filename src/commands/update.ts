@@ -27,12 +27,16 @@ export async function update(args: string[]): Promise<void> {
       ? { type: 'git', url: entry.source }
       : { type: 'local', path: entry.source };
 
-    await installSkill({
-      source,
-      agent: entry.agent,
-      cwd: process.cwd(),
-      force: true,
-    });
+    // Reinstall for each registered agent
+    for (const agentRecord of entry.agents) {
+      await installSkill({
+        source,
+        agent: agentRecord.agent,
+        cwd: process.cwd(),
+        global: agentRecord.global,
+        force: true,
+      });
+    }
 
     logger.success(`Skill "${skillName}" updated successfully!`);
   } catch (err) {

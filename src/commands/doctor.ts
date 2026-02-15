@@ -56,13 +56,15 @@ export async function doctor(): Promise<void> {
         issues++;
       }
 
-      // Check agent path
-      if (existsSync(entry.agent_path)) {
-        const isLink = await isSymlink(entry.agent_path);
-        logger.success(`  ✓ Agent path exists (${isLink ? 'symlink' : 'copy'})`);
-      } else {
-        logger.error(`  ✗ Agent path missing: ${entry.agent_path}`);
-        issues++;
+      // Check each agent path
+      for (const agentRecord of entry.agents) {
+        if (existsSync(agentRecord.agent_path)) {
+          const isLink = await isSymlink(agentRecord.agent_path);
+          logger.success(`  ✓ ${agentRecord.agent} path exists (${isLink ? 'symlink' : 'copy'}${agentRecord.global ? ', global' : ''})`);
+        } else {
+          logger.error(`  ✗ ${agentRecord.agent} path missing: ${agentRecord.agent_path}`);
+          issues++;
+        }
       }
 
       // Check env status
