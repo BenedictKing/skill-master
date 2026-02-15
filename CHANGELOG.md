@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-02-15
+
+### Fixed
+- `--skill` filter in `add` command was parsed but never applied — always installed the first skill found regardless of filter
+- Unknown CLI flags (e.g. `--skills`, `--skil`) were silently ignored instead of reporting an error
+
+### Added
+- `findAllSkillDirectories()` in skill-parser to discover all SKILL.md entries in a source repo
+- Skill name matching now supports both frontmatter `name` and directory name (consistent with refs/skills `filterSkills`)
+- Clear error message when `--skill` filter matches no available skills, listing all discoverable skill names
+- Unknown flag validation in `add` and `remove` command parsers
+
+### Changed
+- `add` command now clones git source once and iterates over discovered skills, instead of re-cloning per skill
+- `findSkillDirectory()` refactored to delegate to `findAllSkillDirectories()` for code reuse
+
 ## [0.1.4] - 2026-02-11
 
 ### Changed

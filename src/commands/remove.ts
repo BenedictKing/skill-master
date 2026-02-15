@@ -38,7 +38,8 @@ export function parseRemoveFlags(args: string[]): { names: string[]; flags: Remo
       switch (key) {
         case 'agent': flags.agent.push(val); break;
         case 'skill': flags.skill.push(val); break;
-        default: break;
+        default:
+          throw new Error(`Unknown option: --${key}`);
       }
       i++;
       continue;
@@ -89,6 +90,8 @@ export function parseRemoveFlags(args: string[]): { names: string[]; flags: Remo
         // Non-flag arguments are skill names (positional)
         if (!arg.startsWith('-')) {
           names.push(arg);
+        } else {
+          throw new Error(`Unknown option: ${arg}`);
         }
         i++;
         break;

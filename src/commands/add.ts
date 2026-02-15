@@ -1,7 +1,11 @@
 import { installSkill } from '../core/installer.js';
-import { isGitUrl } from '../core/git-source.js';
+import { cloneRepo, isGitUrl } from '../core/git-source.js';
+import { findAllSkillDirectories, readSkillMd } from '../core/skill-parser.js';
+import { SkillNotFoundError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
 import type { SkillSource, AgentPlatform } from '../types/index.js';
+import { existsSync } from 'node:fs';
+import { basename } from 'node:path';
 
 export interface AddFlags {
   global: boolean;
@@ -47,7 +51,8 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
       switch (key) {
         case 'agent': flags.agent.push(val); break;
         case 'skill': flags.skill.push(val); break;
-        default: break;
+        default:
+          throw new Error(`Unknown option: --${key}`);
       }
       i++;
       continue;
@@ -116,6 +121,8 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
         // First non-flag argument is the source
         if (!arg.startsWith('-') && source === null) {
           source = arg;
+        } else if (arg.startsWith('-')) {
+          throw new Error(`Unknown option: ${arg}`);
         }
         i++;
         break;
@@ -157,25 +164,75 @@ export async function add(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const skillSource: SkillSource = isGitUrl(source)
-    ? { type: 'git', url: source }
-    : { type: 'local', path: source };
-
   const cwd = process.cwd();
+
+  // Resolve source directory (clone once for git sources)
+  let sourceDir: string;
+  const isGit = isGitUrl(source);
+
+  if (isGit) {
+    logger.step(1, 9, 'Fetching skill source...');
+    sourceDir = await cloneRepo(source);
+  } else {
+    sourceDir = source;
+    if (!existsSync(sourceDir)) {
+      throw new SkillNotFoundError(sourceDir);
+    }
+  }
+
+  // Discover all skill directories in the source
+  const allSkillDirs = await findAllSkillDirectories(sourceDir);
+  if (allSkillDirs.length === 0) {
+    throw new SkillNotFoundError(`No SKILL.md found in ${sourceDir}`);
+  }
+
+  // Filter by --skill if specified
+  let targetDirs = allSkillDirs;
+  if (flags.skill.length > 0 && !flags.skill.includes('*')) {
+    const requested = new Set(flags.skill.map(s => s.toLowerCase()));
+    const filtered: string[] = [];
+
+    for (const dir of allSkillDirs) {
+      const parsed = await readSkillMd(dir);
+      if (!parsed) continue;
+      const name = parsed.frontmatter.name.toLowerCase();
+      const dirName = basename(dir).toLowerCase();
+      if (requested.has(name) || requested.has(dirName)) {
+        filtered.push(dir);
+      }
+    }
+
+    if (filtered.length === 0) {
+      const available = [];
+      for (const dir of allSkillDirs) {
+        const parsed = await readSkillMd(dir);
+        if (parsed) available.push(parsed.frontmatter.name);
+      }
+      logger.error(
+        `No matching skills found for: ${flags.skill.join(', ')}\n` +
+        `  Available skills: ${available.join(', ')}`
+      );
+      process.exit(1);
+    }
+
+    targetDirs = filtered;
+  }
 
   // If multiple agents specified, install for each
   const agents = flags.agent.length > 0 ? flags.agent : [undefined];
 
   try {
-    for (const agent of agents) {
-      await installSkill({
-        source: skillSource,
-        agent: agent as AgentPlatform | undefined,
-        cwd,
-        copy: flags.copy,
-        force: flags.force,
-        yes: flags.yes,
-      });
+    for (const dir of targetDirs) {
+      for (const agent of agents) {
+        await installSkill({
+          source: { type: 'local', path: dir },
+          agent: agent as AgentPlatform | undefined,
+          cwd,
+          copy: flags.copy,
+          force: flags.force,
+          yes: flags.yes,
+        });
+      }
     }
   } catch (err) {
     logger.error((err as Error).message);

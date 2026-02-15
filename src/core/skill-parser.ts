@@ -83,9 +83,18 @@ export function serializeSkillMd(parsed: ParsedSkill): string {
 
 /** Search for SKILL.md files within a directory (looks in .claude/skills/*) */
 export async function findSkillDirectory(dir: string): Promise<string | null> {
+  const dirs = await findAllSkillDirectories(dir);
+  return dirs.length > 0 ? dirs[0] : null;
+}
+
+/** Discover all directories containing SKILL.md within a source */
+export async function findAllSkillDirectories(dir: string): Promise<string[]> {
+  const results: string[] = [];
+
   // Direct SKILL.md in root
   if (existsSync(join(dir, 'SKILL.md'))) {
-    return dir;
+    results.push(dir);
+    return results;
   }
 
   // Search in .claude/skills/*/SKILL.md
@@ -97,7 +106,7 @@ export async function findSkillDirectory(dir: string): Promise<string | null> {
         if (entry.isDirectory()) {
           const skillMdPath = join(skillsRoot, entry.name, 'SKILL.md');
           if (existsSync(skillMdPath)) {
-            return join(skillsRoot, entry.name);
+            results.push(join(skillsRoot, entry.name));
           }
         }
       }
@@ -106,14 +115,14 @@ export async function findSkillDirectory(dir: string): Promise<string | null> {
     }
   }
 
-  // Step 3: Search one-level subdirectories for SKILL.md (skip hidden dirs)
+  // Search one-level subdirectories for SKILL.md (skip hidden dirs)
   try {
     const topEntries = await readdir(dir, { withFileTypes: true });
     for (const entry of topEntries) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
         const skillMdPath = join(dir, entry.name, 'SKILL.md');
         if (existsSync(skillMdPath)) {
-          return join(dir, entry.name);
+          results.push(join(dir, entry.name));
         }
       }
     }
@@ -121,7 +130,7 @@ export async function findSkillDirectory(dir: string): Promise<string | null> {
     // ignore
   }
 
-  return null;
+  return results;
 }
 
 /** Read and parse a SKILL.md from a directory */
