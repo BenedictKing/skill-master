@@ -319,6 +319,11 @@ export function getAgentSkillPath(cwd: string, agent: AgentPlatform, name: strin
   return join(cwd, AGENTS[agent].skillsDir, name);
 }
 
+/** Get the global skill path: globalSkillsDir + skillName */
+export function getAgentGlobalSkillPath(agent: AgentPlatform, name: string): string {
+  return join(AGENTS[agent].globalSkillsDir, name);
+}
+
 /** Get the agent skills root directory: cwd + skillsDir */
 export function getAgentSkillsRoot(cwd: string, agent: AgentPlatform): string {
   return join(cwd, AGENTS[agent].skillsDir);

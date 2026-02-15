@@ -24,4 +24,4 @@ export function getSkillConfigPath(name: string): string {
 }
 
 // Re-export from agents.ts — eliminates duplicate AGENT_SKILL_DIRS mapping
-export { getAgentSkillPath, getAgentSkillsRoot } from '../platform/agents.js';
+export { getAgentSkillPath, getAgentGlobalSkillPath, getAgentSkillsRoot } from '../platform/agents.js';

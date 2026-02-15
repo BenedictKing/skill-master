@@ -6,7 +6,7 @@ import { backupEnv, restoreEnv } from './env-manager.js';
 import { updateRegistry } from './registry.js';
 import { detectPlatform, getAgentSkillsDir } from '../platform/detector.js';
 import { copyDir, removePath, symlinkOrCopy, ensureDir, readTextSafe } from '../utils/fs-helpers.js';
-import { getSkillCanonicalPath, getAgentSkillPath } from '../utils/paths.js';
+import { getSkillCanonicalPath, getAgentSkillPath, getAgentGlobalSkillPath } from '../utils/paths.js';
 import * as logger from '../utils/logger.js';
 import { SkillNotFoundError, SkillParseError } from '../utils/errors.js';
 import type { InstallOptions, RegistryEntry } from '../types/index.js';
@@ -26,7 +26,7 @@ const TOTAL_STEPS = 9;
  * 9. updateRegistry   → update registry.json
  */
 export async function installSkill(options: InstallOptions): Promise<void> {
-  const { source, cwd, copy = false, force = false } = options;
+  const { source, cwd, copy = false, force = false, global: isGlobal = false } = options;
 
   // Step 1: Fetch source
   logger.step(1, TOTAL_STEPS, 'Fetching skill source...');
@@ -66,7 +66,9 @@ export async function installSkill(options: InstallOptions): Promise<void> {
 
   // Step 5: Backup existing .env
   logger.step(5, TOTAL_STEPS, 'Backing up .env...');
-  const agentSkillDir = getAgentSkillPath(cwd, agent, skillName);
+  const agentSkillDir = isGlobal
+    ? getAgentGlobalSkillPath(agent, skillName)
+    : getAgentSkillPath(cwd, agent, skillName);
   const envBackup = await backupEnv(skillName, agentSkillDir);
   if (envBackup) {
     logger.success(`Backed up ${Object.keys(envBackup).length} env key(s)`);
@@ -100,7 +102,9 @@ export async function installSkill(options: InstallOptions): Promise<void> {
 
   // Step 8: Link or copy to agent directory
   logger.step(8, TOTAL_STEPS, `Linking to ${agent} skills directory...`);
-  const agentPath = getAgentSkillPath(cwd, agent, skillName);
+  const agentPath = isGlobal
+    ? getAgentGlobalSkillPath(agent, skillName)
+    : getAgentSkillPath(cwd, agent, skillName);
   const linkType = await symlinkOrCopy(canonicalPath, agentPath, copy);
   logger.success(`${linkType === 'symlink' ? 'Symlinked' : 'Copied'} to ${agentPath}`);
 

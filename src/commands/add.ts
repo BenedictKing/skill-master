@@ -17,6 +17,7 @@ export interface AddFlags {
   fullDepth: boolean;
   copy: boolean;
   force: boolean;
+  help: boolean;
 }
 
 /**
@@ -35,6 +36,7 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
     fullDepth: false,
     copy: false,
     force: false,
+    help: false,
   };
 
   let source: string | null = null;
@@ -59,6 +61,12 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
     }
 
     switch (arg) {
+      case '-h':
+      case '--help':
+        flags.help = true;
+        i++;
+        break;
+
       case '-g':
       case '--global':
         flags.global = true;
@@ -139,25 +147,35 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
   return { source, flags };
 }
 
+function printAddHelp(): void {
+  console.log('Usage: skill-master add <source> [options]');
+  console.log('');
+  console.log('Options:');
+  console.log('  -h, --help            Show this help message');
+  console.log('  -g, --global          Install globally (~/.agents/)');
+  console.log('  -a, --agent <agents>  Target agents (space-separated)');
+  console.log('  -s, --skill <skills>  Select skills (space-separated)');
+  console.log('  -y, --yes             Skip confirmations');
+  console.log('  -l, --list            List available skills without installing');
+  console.log('  --all                 Install all skills to all agents');
+  console.log('  --full-depth          Search all subdirectories');
+  console.log('  --copy                Copy instead of symlink');
+  console.log('  --force               Force reinstall');
+}
+
 /** add command — install skills (compatible with `npx skills add`) */
 export async function add(args: string[]): Promise<void> {
   if (args.length === 0) {
-    logger.error('Usage: skill-master add <source> [options]');
-    console.log('');
-    console.log('Options:');
-    console.log('  -g, --global          Install globally (~/.agents/)');
-    console.log('  -a, --agent <agents>  Target agents (space-separated)');
-    console.log('  -s, --skill <skills>  Select skills (space-separated)');
-    console.log('  -y, --yes             Skip confirmations');
-    console.log('  -l, --list            List available skills without installing');
-    console.log('  --all                 Install all skills to all agents');
-    console.log('  --full-depth          Search all subdirectories');
-    console.log('  --copy                Copy instead of symlink');
-    console.log('  --force               Force reinstall');
+    printAddHelp();
     process.exit(1);
   }
 
   const { source, flags } = parseAddFlags(args);
+
+  if (flags.help) {
+    printAddHelp();
+    process.exit(0);
+  }
 
   if (!source) {
     logger.error('No source specified. Provide a GitHub URL, owner/repo, or local path.');
@@ -228,6 +246,7 @@ export async function add(args: string[]): Promise<void> {
           source: { type: 'local', path: dir },
           agent: agent as AgentPlatform | undefined,
           cwd,
+          global: flags.global,
           copy: flags.copy,
           force: flags.force,
           yes: flags.yes,

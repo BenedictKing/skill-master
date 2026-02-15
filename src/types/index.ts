@@ -54,6 +54,7 @@ export interface InstallOptions {
   source: SkillSource;
   agent?: AgentPlatform;
   cwd: string;
+  global?: boolean;
   copy?: boolean;
   force?: boolean;
   yes?: boolean;

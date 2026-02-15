@@ -1,6 +1,6 @@
 import { getRegistryEntry, removeFromRegistry, listRegistry } from '../core/registry.js';
 import { removePath } from '../utils/fs-helpers.js';
-import { getSkillCanonicalPath, getSkillConfigPath } from '../utils/paths.js';
+import { getSkillCanonicalPath, getSkillConfigPath, getAgentGlobalSkillPath } from '../utils/paths.js';
 import * as logger from '../utils/logger.js';
 import { SkillNotFoundError } from '../utils/errors.js';
 
@@ -11,6 +11,7 @@ export interface RemoveFlags {
   yes: boolean;
   all: boolean;
   purge: boolean;
+  help: boolean;
 }
 
 /** Parse POSIX-style flags for the remove command */
@@ -22,6 +23,7 @@ export function parseRemoveFlags(args: string[]): { names: string[]; flags: Remo
     yes: false,
     all: false,
     purge: false,
+    help: false,
   };
 
   const names: string[] = [];
@@ -46,6 +48,12 @@ export function parseRemoveFlags(args: string[]): { names: string[]; flags: Remo
     }
 
     switch (arg) {
+      case '-h':
+      case '--help':
+        flags.help = true;
+        i++;
+        break;
+
       case '-g':
       case '--global':
         flags.global = true;
@@ -106,22 +114,32 @@ export function parseRemoveFlags(args: string[]): { names: string[]; flags: Remo
   return { names, flags };
 }
 
+function printRemoveHelp(): void {
+  console.log('Usage: skill-master remove [skills...] [options]');
+  console.log('');
+  console.log('Options:');
+  console.log('  -h, --help            Show this help message');
+  console.log('  -g, --global          Remove from global (~/.agents/)');
+  console.log('  -a, --agent <agents>  Target agents (space-separated)');
+  console.log('  -s, --skill <skills>  Select skills (space-separated)');
+  console.log('  -y, --yes             Skip confirmations');
+  console.log('  --all                 Remove all skills');
+  console.log('  --purge               Also remove config data');
+}
+
 /** remove command — remove installed skills */
 export async function remove(args: string[]): Promise<void> {
   if (args.length === 0) {
-    logger.error('Usage: skill-master remove [skills...] [options]');
-    console.log('');
-    console.log('Options:');
-    console.log('  -g, --global          Remove from global (~/.agents/)');
-    console.log('  -a, --agent <agents>  Target agents (space-separated)');
-    console.log('  -s, --skill <skills>  Select skills (space-separated)');
-    console.log('  -y, --yes             Skip confirmations');
-    console.log('  --all                 Remove all skills');
-    console.log('  --purge               Also remove config data');
+    printRemoveHelp();
     process.exit(1);
   }
 
   const { names, flags } = parseRemoveFlags(args);
+
+  if (flags.help) {
+    printRemoveHelp();
+    process.exit(0);
+  }
 
   // Determine which skills to remove
   let skillNames: string[];
@@ -149,8 +167,15 @@ export async function remove(args: string[]): Promise<void> {
       logger.info(`Removing skill: ${skillName}`);
 
       // Remove agent directory link/copy
-      await removePath(entry.agent_path);
-      logger.success(`Removed from ${entry.agent_path}`);
+      if (flags.global) {
+        // When --global, remove from global skills directory
+        const globalPath = getAgentGlobalSkillPath(entry.agent, skillName);
+        await removePath(globalPath);
+        logger.success(`Removed from ${globalPath}`);
+      } else {
+        await removePath(entry.agent_path);
+        logger.success(`Removed from ${entry.agent_path}`);
+      }
 
       // Remove canonical directory
       await removePath(entry.canonical_path);
