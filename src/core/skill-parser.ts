@@ -123,14 +123,29 @@ export async function findAllSkillDirectories(dir: string, fullDepth = false): P
     }
   }
 
-  // Search one-level subdirectories for SKILL.md (skip hidden dirs)
+  // Search up to 2 levels deep for SKILL.md (skip hidden dirs)
   try {
     const topEntries = await readdir(dir, { withFileTypes: true });
     for (const entry of topEntries) {
-      if (entry.isDirectory() && !entry.name.startsWith('.')) {
-        const skillMdPath = join(dir, entry.name, 'SKILL.md');
-        if (existsSync(skillMdPath)) {
-          results.push(join(dir, entry.name));
+      if (entry.isDirectory() && !entry.name.startsWith('.') && !SKIP_DIRS.has(entry.name)) {
+        const subDir = join(dir, entry.name);
+        // Level 1
+        if (existsSync(join(subDir, 'SKILL.md'))) {
+          results.push(subDir);
+        }
+        // Level 2
+        try {
+          const subEntries = await readdir(subDir, { withFileTypes: true });
+          for (const sub of subEntries) {
+            if (sub.isDirectory() && !sub.name.startsWith('.') && !SKIP_DIRS.has(sub.name)) {
+              const skillMdPath = join(subDir, sub.name, 'SKILL.md');
+              if (existsSync(skillMdPath)) {
+                results.push(join(subDir, sub.name));
+              }
+            }
+          }
+        } catch {
+          // ignore
         }
       }
     }
