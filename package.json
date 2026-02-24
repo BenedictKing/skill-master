@@ -1,6 +1,6 @@
 {
   "name": "skill-master",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Cross-platform skill package manager for AI coding agents",
   "type": "module",
   "main": "./dist/cli.js",
