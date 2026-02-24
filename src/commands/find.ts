@@ -29,9 +29,10 @@ export async function find(args: string[]): Promise<void> {
       process.exit(1);
     }
 
-    const data = await response.json() as SearchResult[];
+    const data = await response.json() as SearchResponse;
+    const skills = data.skills ?? [];
 
-    if (!Array.isArray(data) || data.length === 0) {
+    if (skills.length === 0) {
       logger.info('No skills found matching your query.');
       return;
     }
@@ -39,7 +40,7 @@ export async function find(args: string[]): Promise<void> {
     logger.blank();
     logger.tableHeader('Name', 'Source', 'Installs');
 
-    for (const item of data) {
+    for (const item of skills) {
       logger.tableRow(
         item.name ?? '—',
         item.source ?? '—',
@@ -61,4 +62,8 @@ interface SearchResult {
   name?: string;
   source?: string;
   installs?: number;
+}
+
+interface SearchResponse {
+  skills?: SearchResult[];
 }

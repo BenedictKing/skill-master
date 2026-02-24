@@ -105,52 +105,72 @@ export async function findAllSkillDirectories(dir: string, fullDepth = false): P
     return results;
   }
 
-  // Search in .claude/skills/*/SKILL.md
-  const skillsRoot = join(dir, '.claude', 'skills');
-  if (existsSync(skillsRoot)) {
+  // Priority search: common skill directory conventions
+  const seenPaths = new Set<string>();
+  const priorityDirs = [
+    join(dir, 'skills'),
+    join(dir, 'skills', '.curated'),
+    join(dir, 'skills', '.experimental'),
+    join(dir, 'skills', '.system'),
+    join(dir, '.agent', 'skills'),
+    join(dir, '.agents', 'skills'),
+    join(dir, '.claude', 'skills'),
+    join(dir, '.cline', 'skills'),
+    join(dir, '.codex', 'skills'),
+    join(dir, '.github', 'skills'),
+    join(dir, '.kiro', 'skills'),
+    join(dir, '.opencode', 'skills'),
+    join(dir, '.roo', 'skills'),
+    join(dir, '.windsurf', 'skills'),
+  ];
+
+  for (const searchDir of priorityDirs) {
     try {
-      const entries = await readdir(skillsRoot, { withFileTypes: true });
+      const entries = await readdir(searchDir, { withFileTypes: true });
       for (const entry of entries) {
         if (entry.isDirectory()) {
-          const skillMdPath = join(skillsRoot, entry.name, 'SKILL.md');
-          if (existsSync(skillMdPath)) {
-            results.push(join(skillsRoot, entry.name));
+          const skillDir = join(searchDir, entry.name);
+          if (existsSync(join(skillDir, 'SKILL.md')) && !seenPaths.has(skillDir)) {
+            results.push(skillDir);
+            seenPaths.add(skillDir);
           }
         }
       }
     } catch {
-      // continue to next search strategy
+      // directory doesn't exist, skip
     }
   }
 
-  // Search up to 2 levels deep for SKILL.md (skip hidden dirs)
-  try {
-    const topEntries = await readdir(dir, { withFileTypes: true });
-    for (const entry of topEntries) {
-      if (entry.isDirectory() && !entry.name.startsWith('.') && !SKIP_DIRS.has(entry.name)) {
-        const subDir = join(dir, entry.name);
-        // Level 1
-        if (existsSync(join(subDir, 'SKILL.md'))) {
-          results.push(subDir);
-        }
-        // Level 2
-        try {
-          const subEntries = await readdir(subDir, { withFileTypes: true });
-          for (const sub of subEntries) {
-            if (sub.isDirectory() && !sub.name.startsWith('.') && !SKIP_DIRS.has(sub.name)) {
-              const skillMdPath = join(subDir, sub.name, 'SKILL.md');
-              if (existsSync(skillMdPath)) {
-                results.push(join(subDir, sub.name));
+  // Fallback: search up to 2 levels deep for SKILL.md (skip hidden dirs)
+  if (results.length === 0) {
+    try {
+      const topEntries = await readdir(dir, { withFileTypes: true });
+      for (const entry of topEntries) {
+        if (entry.isDirectory() && !entry.name.startsWith('.') && !SKIP_DIRS.has(entry.name)) {
+          const subDir = join(dir, entry.name);
+          if (existsSync(join(subDir, 'SKILL.md')) && !seenPaths.has(subDir)) {
+            results.push(subDir);
+            seenPaths.add(subDir);
+          }
+          try {
+            const subEntries = await readdir(subDir, { withFileTypes: true });
+            for (const sub of subEntries) {
+              if (sub.isDirectory() && !sub.name.startsWith('.') && !SKIP_DIRS.has(sub.name)) {
+                const nested = join(subDir, sub.name);
+                if (existsSync(join(nested, 'SKILL.md')) && !seenPaths.has(nested)) {
+                  results.push(nested);
+                  seenPaths.add(nested);
+                }
               }
             }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
         }
       }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
 
   return results;
