@@ -110,3 +110,30 @@ export interface Registry {
 
 /** .env configuration status */
 export type EnvStatus = 'configured' | 'missing' | 'partial';
+
+/** Installation mode: symlink or copy */
+export type InstallMode = 'symlink' | 'copy';
+
+/** Local lock file entry for a skill */
+export interface LocalLockEntry {
+  source: string;
+  sourceType: 'github' | 'node_modules' | 'local';
+  computedHash: string;
+  /** Relative path to the skill directory within the source (for multi-skill repos) */
+  skillDir?: string;
+}
+
+/** Project-level lock file structure */
+export interface LocalLock {
+  version: 1;
+  skills: Record<string, LocalLockEntry>;
+}
+
+/** Result of skill installation */
+export interface InstallResult {
+  skillName: string;
+  version?: string;
+  canonicalPath: string;
+  agentPath: string;
+  installMode: InstallMode;
+}

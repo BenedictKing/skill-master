@@ -5,4 +5,7 @@ export {
   detectPlatform,
   getAgentSkillsDir,
   getSupportedPlatforms,
+  isUniversalAgent,
+  getUniversalAgents,
+  getNonUniversalAgents,
 } from './agents.js';

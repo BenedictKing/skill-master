@@ -1,4 +1,5 @@
 import { getRegistryEntry, removeFromRegistry, removeAgentFromRegistry, listRegistry } from '../core/registry.js';
+import { removeSkillFromLocalLock } from '../core/local-lock.js';
 import { removePath } from '../utils/fs-helpers.js';
 import { getSkillCanonicalPath, getSkillConfigPath, getAgentGlobalSkillPath } from '../utils/paths.js';
 import * as logger from '../utils/logger.js';
@@ -189,6 +190,7 @@ export async function remove(args: string[]): Promise<void> {
             await removePath(getSkillConfigPath(skillName));
             logger.success('Purged config directory');
           }
+          await removeSkillFromLocalLock(skillName, process.cwd());
         }
       } else {
         // Remove all agent paths
@@ -209,6 +211,7 @@ export async function remove(args: string[]): Promise<void> {
 
         // Remove entire registry entry
         await removeFromRegistry(skillName);
+        await removeSkillFromLocalLock(skillName, process.cwd());
       }
 
       logger.success(`Skill "${skillName}" removed successfully!`);

@@ -217,3 +217,44 @@ export function extractEnvKeys(envExampleContent: string): string[] {
   }
   return keys;
 }
+
+/** Discover skills inside node_modules (top-level and scoped packages) */
+export async function discoverNodeModulesSkills(cwd: string): Promise<string[]> {
+  const nmDir = join(cwd, 'node_modules');
+  if (!existsSync(nmDir)) return [];
+
+  const results: string[] = [];
+
+  try {
+    const entries = await readdir(nmDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      if (entry.name.startsWith('@')) {
+        // Scoped packages: scan @scope/*
+        try {
+          const scopeEntries = await readdir(join(nmDir, entry.name), { withFileTypes: true });
+          for (const scopeEntry of scopeEntries) {
+            if (scopeEntry.isDirectory()) {
+              const pkgDir = join(nmDir, entry.name, scopeEntry.name);
+              if (existsSync(join(pkgDir, 'SKILL.md'))) {
+                results.push(pkgDir);
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+      } else if (!entry.name.startsWith('.')) {
+        const pkgDir = join(nmDir, entry.name);
+        if (existsSync(join(pkgDir, 'SKILL.md'))) {
+          results.push(pkgDir);
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return results;
+}

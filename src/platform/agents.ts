@@ -13,6 +13,7 @@ export interface AgentConfig {
   skillsDir: string;
   globalSkillsDir: string;
   detectMarker?: string;
+  showInUniversalList?: boolean;
 }
 
 export const AGENTS = {
@@ -76,6 +77,12 @@ export const AGENTS = {
     globalSkillsDir: join(home, '.commandcode/skills'),
     detectMarker: '.commandcode',
   },
+  cortex: {
+    name: 'cortex',
+    displayName: 'Cortex',
+    skillsDir: '.cortex/skills',
+    globalSkillsDir: join(home, '.snowflake/cortex/skills'),
+  },
   continue: {
     name: 'continue',
     displayName: 'Continue',
@@ -92,7 +99,7 @@ export const AGENTS = {
   cursor: {
     name: 'cursor',
     displayName: 'Cursor',
-    skillsDir: '.cursor/skills',
+    skillsDir: '.agents/skills',
     globalSkillsDir: join(home, '.cursor/skills'),
     detectMarker: '.cursor',
   },
@@ -187,7 +194,7 @@ export const AGENTS = {
   opencode: {
     name: 'opencode',
     displayName: 'OpenCode',
-    skillsDir: '.opencode/skills',
+    skillsDir: '.agents/skills',
     globalSkillsDir: join(configHome, 'opencode/skills'),
   },
   openhands: {
@@ -223,6 +230,7 @@ export const AGENTS = {
     displayName: 'Replit',
     skillsDir: '.agents/skills',
     globalSkillsDir: join(configHome, 'agents/skills'),
+    showInUniversalList: false,
   },
   roo: {
     name: 'roo',
@@ -279,6 +287,13 @@ export const AGENTS = {
     globalSkillsDir: join(home, '.adal/skills'),
     detectMarker: '.adal',
   },
+  universal: {
+    name: 'universal',
+    displayName: 'Universal',
+    skillsDir: '.agents/skills',
+    globalSkillsDir: join(configHome, 'agents/skills'),
+    showInUniversalList: false,
+  },
 } as const satisfies Record<string, AgentConfig>;
 
 export type AgentPlatform = keyof typeof AGENTS;
@@ -327,4 +342,23 @@ export function getAgentGlobalSkillPath(agent: AgentPlatform, name: string): str
 /** Get the agent skills root directory: cwd + skillsDir */
 export function getAgentSkillsRoot(cwd: string, agent: AgentPlatform): string {
   return join(cwd, AGENTS[agent].skillsDir);
+}
+
+/** Get all agents that use the universal `.agents/skills` directory and are visible in universal list */
+export function getUniversalAgents(): AgentPlatform[] {
+  return (Object.entries(AGENTS) as Array<[AgentPlatform, AgentConfig]>)
+    .filter(([, config]) => config.skillsDir === '.agents/skills' && config.showInUniversalList !== false)
+    .map(([key]) => key);
+}
+
+/** Get all agents that do NOT use the universal `.agents/skills` directory */
+export function getNonUniversalAgents(): AgentPlatform[] {
+  return (Object.entries(AGENTS) as Array<[AgentPlatform, AgentConfig]>)
+    .filter(([, config]) => config.skillsDir !== '.agents/skills')
+    .map(([key]) => key);
+}
+
+/** Check if an agent uses the universal `.agents/skills` directory */
+export function isUniversalAgent(type: AgentPlatform): boolean {
+  return AGENTS[type].skillsDir === '.agents/skills';
 }

@@ -1,11 +1,12 @@
 import { installSkill } from '../core/installer.js';
 import { cloneRepo, parseSource } from '../core/git-source.js';
 import { findAllSkillDirectories, readSkillMd } from '../core/skill-parser.js';
+import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
 import { SkillNotFoundError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
 import type { SkillSource, AgentPlatform } from '../types/index.js';
 import { existsSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 
 export interface AddFlags {
   global: boolean;
@@ -272,7 +273,7 @@ export async function add(args: string[]): Promise<void> {
   try {
     for (const dir of targetDirs) {
       for (const agent of agents) {
-        await installSkill({
+        const result = await installSkill({
           source: { type: 'local', path: dir },
           agent: agent as AgentPlatform | undefined,
           cwd,
@@ -281,6 +282,18 @@ export async function add(args: string[]): Promise<void> {
           force: flags.force,
           yes: flags.yes,
         });
+
+        // Update local lock for non-global installs
+        if (!flags.global) {
+          // Record relative skill dir path for multi-skill source repos
+          const skillDir = relative(sourceDir, dir);
+          await addSkillToLocalLock(result.skillName, {
+            source: source!,
+            sourceType: parsed.type === 'git' ? 'github' : 'local',
+            computedHash: await computeSkillFolderHash(result.canonicalPath),
+            ...(skillDir && skillDir !== '.' ? { skillDir } : {}),
+          }, cwd);
+        }
       }
     }
   } catch (err) {

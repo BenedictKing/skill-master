@@ -10,6 +10,8 @@ import { doctor } from './commands/doctor.js';
 import { find } from './commands/find.js';
 import { init } from './commands/init.js';
 import { check } from './commands/check.js';
+import { sync } from './commands/sync.js';
+import { restore } from './commands/restore.js';
 import * as logger from './utils/logger.js';
 
 const VERSION = '0.1.0';
@@ -23,6 +25,8 @@ Usage:
   skill-master list [options]             List installed skills (alias: ls)
   skill-master find [query]               Search for skills (aliases: search, f, s)
   skill-master update [skill]             Update skills (alias: upgrade)
+  skill-master sync [options]             Sync skills from node_modules
+  skill-master restore                    Restore skills from skills-lock.json (alias: install-lock)
   skill-master init [name]                Create a new skill template
   skill-master check                      Check for skill updates
   skill-master env <list|set|edit>        Manage environment variables
@@ -40,12 +44,19 @@ Add Options:
   --copy                Copy instead of symlink
   --force               Force reinstall
 
+Sync Options:
+  -a, --agent <agents>  Target agents (space-separated)
+  -y, --yes             Skip confirmations
+  -f, --force           Force reinstall even if unchanged
+
 Examples:
   skill-master add owner/repo
   skill-master add https://github.com/user/skill -a claude-code cursor -y
   skill-master add ./local-skill --agent=cursor --copy
   skill-master remove my-skill --purge
   skill-master find "code review"
+  skill-master sync -y
+  skill-master restore
   skill-master init my-new-skill
   skill-master check
 `;
@@ -111,6 +122,17 @@ async function main() {
       // check
       case 'check':
         await check(commandArgs);
+        break;
+
+      // sync — discover and install skills from node_modules
+      case 'sync':
+        await sync(commandArgs);
+        break;
+
+      // restore with alias: install-lock
+      case 'restore':
+      case 'install-lock':
+        await restore(commandArgs);
         break;
 
       // env, info, doctor — skill-master extensions

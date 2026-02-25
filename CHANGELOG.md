@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Project-level lock file (`skills-lock.json`) for tracking installed skills per project (`src/core/local-lock.ts`)
+- `sync` command to discover and install skills from `node_modules`
+- `restore` command (alias `install-lock`) to reinstall skills from `skills-lock.json`
+- `discoverNodeModulesSkills()` in skill-parser for scanning `node_modules` packages with SKILL.md
+- `cortex` and `universal` virtual agent platforms
+- `getUniversalAgents()`, `getNonUniversalAgents()`, `isUniversalAgent()` helper functions in agents.ts
+- `sanitizeName()` and `isPathSafe()` security functions in installer to prevent path traversal
+- `installSkill()` now returns `InstallResult` with skillName, canonicalPath, agentPath, installMode
+- New types: `InstallMode`, `LocalLockEntry`, `LocalLock`, `InstallResult`
+- `LocalLockEntry.skillDir` field to record per-skill relative path within multi-skill sources
+
+### Changed
+- `cursor` and `opencode` agents now use universal `.agents/skills` directory (aligned with vercel-skills v1.4.1)
+- `add` command writes to `skills-lock.json` on non-global installs
+- `remove` command cleans up `skills-lock.json` entries when skills are removed
+- Universal agents skip redundant symlink when canonical path equals agent path in global mode
+- `restore` uses `skillDir` from lock entry to locate correct skill in multi-skill repos
+
+### Security
+- Skill names are sanitized to `[a-zA-Z0-9_.-]` with `..` path traversal sequences and leading dots stripped
+- `sanitizeName` rejects names that collapse to `.` or empty string (prevents directory deletion)
+- `isPathSafe()` validates resolved paths stay within expected base directories
+- `readLocalLock` validates `skills` field is non-null plain object (rejects null/array corruption)
+- `restore` and `sync` consistently use `sanitizeName` for node_modules skill name matching
+
 ## [0.1.5] - 2026-02-15
 
 ### Fixed

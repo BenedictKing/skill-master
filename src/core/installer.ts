@@ -1,17 +1,34 @@
-import { join } from 'node:path';
+import { join, resolve, relative } from 'node:path';
 import { existsSync } from 'node:fs';
 import { cloneRepo, isGitUrl, isLocalPath } from './git-source.js';
 import { findSkillDirectory, readSkillMd, inferCapabilities, extractEnvKeys } from './skill-parser.js';
 import { backupEnv, restoreEnv } from './env-manager.js';
 import { updateRegistry } from './registry.js';
-import { detectPlatform, getAgentSkillsDir } from '../platform/detector.js';
+import { detectPlatform, getAgentSkillsDir, isUniversalAgent } from '../platform/detector.js';
 import { copyDir, removePath, symlinkOrCopy, ensureDir, readTextSafe } from '../utils/fs-helpers.js';
-import { getSkillCanonicalPath, getAgentSkillPath, getAgentGlobalSkillPath } from '../utils/paths.js';
+import { getSkillCanonicalPath, getAgentSkillPath, getAgentGlobalSkillPath, SKILLS_DIR } from '../utils/paths.js';
 import * as logger from '../utils/logger.js';
 import { SkillNotFoundError, SkillParseError } from '../utils/errors.js';
-import type { InstallOptions, RegistryEntry, AgentInstall } from '../types/index.js';
+import type { InstallOptions, RegistryEntry, AgentInstall, InstallResult, InstallMode } from '../types/index.js';
 
 const TOTAL_STEPS = 9;
+
+/** Sanitize a skill name — strip path traversal and only allow [a-zA-Z0-9_.-] */
+export function sanitizeName(name: string): string {
+  // Remove path traversal sequences first, then filter characters
+  let sanitized = name.replace(/\.\./g, '').replace(/[^a-zA-Z0-9_.-]/g, '');
+  // Strip leading dots to prevent '.' or '.hidden' directory issues
+  sanitized = sanitized.replace(/^\.+/, '');
+  return sanitized;
+}
+
+/** Verify that a resolved path stays within the expected base directory */
+export function isPathSafe(targetPath: string, baseDir: string): boolean {
+  const rel = relative(resolve(baseDir), resolve(targetPath));
+  // Unsafe if: empty (same as base), starts with '..', or is absolute (Windows drive letter)
+  if (!rel || rel === '.') return false;
+  return !rel.startsWith('..') && !resolve(rel).includes('..');
+}
 
 /**
  * Main installation engine — 9-step process:
@@ -25,7 +42,7 @@ const TOTAL_STEPS = 9;
  * 8. linkOrCopy       → symlink/copy to agent dir
  * 9. updateRegistry   → update registry.json
  */
-export async function installSkill(options: InstallOptions): Promise<void> {
+export async function installSkill(options: InstallOptions): Promise<InstallResult> {
   const { source, cwd, copy = false, force = false, global: isGlobal = false } = options;
 
   // Step 1: Fetch source
@@ -56,7 +73,10 @@ export async function installSkill(options: InstallOptions): Promise<void> {
   if (!parsed) {
     throw new SkillParseError('Failed to read SKILL.md');
   }
-  const skillName = parsed.frontmatter.name;
+  const skillName = sanitizeName(parsed.frontmatter.name);
+  if (!skillName) {
+    throw new SkillParseError('Skill name is empty after sanitization');
+  }
   logger.info(`Found skill: ${skillName}${parsed.frontmatter.version ? ` v${parsed.frontmatter.version}` : ''}`);
 
   // Step 4: Detect agent platform
@@ -79,6 +99,11 @@ export async function installSkill(options: InstallOptions): Promise<void> {
   // Step 6: Clean and install to canonical path
   logger.step(6, TOTAL_STEPS, 'Installing to canonical path...');
   const canonicalPath = getSkillCanonicalPath(skillName);
+
+  // Safety check: ensure canonical path is within the skills directory
+  if (!isPathSafe(canonicalPath, SKILLS_DIR)) {
+    throw new SkillParseError(`Unsafe canonical path: ${canonicalPath}`);
+  }
 
   if (existsSync(canonicalPath) && !force) {
     logger.info('Replacing existing installation');
@@ -105,8 +130,17 @@ export async function installSkill(options: InstallOptions): Promise<void> {
   const agentPath = isGlobal
     ? getAgentGlobalSkillPath(agent, skillName)
     : getAgentSkillPath(cwd, agent, skillName);
-  const linkType = await symlinkOrCopy(canonicalPath, agentPath, copy);
-  logger.success(`${linkType === 'symlink' ? 'Symlinked' : 'Copied'} to ${agentPath}`);
+
+  let installMode: InstallMode;
+  // Universal agents in global mode: canonical path IS the agent path, skip symlink
+  if (isGlobal && isUniversalAgent(agent) && canonicalPath === agentPath) {
+    installMode = 'copy';
+    logger.success(`Canonical path is agent path (universal agent): ${agentPath}`);
+  } else {
+    const linkType = await symlinkOrCopy(canonicalPath, agentPath, copy);
+    installMode = linkType;
+    logger.success(`${linkType === 'symlink' ? 'Symlinked' : 'Copied'} to ${agentPath}`);
+  }
 
   // Step 9: Update registry
   logger.step(9, TOTAL_STEPS, 'Updating registry...');
@@ -136,4 +170,12 @@ export async function installSkill(options: InstallOptions): Promise<void> {
   await updateRegistry(skillName, entry);
   logger.blank();
   logger.success(`Skill "${skillName}" installed successfully!`);
+
+  return {
+    skillName,
+    version: parsed.frontmatter.version,
+    canonicalPath,
+    agentPath,
+    installMode,
+  };
 }
