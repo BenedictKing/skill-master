@@ -21,6 +21,8 @@ export interface SkillSource {
   url?: string;
   path?: string;
   branch?: string;
+  /** Local path to use for installation (when type='git', this is the cloned temp dir) */
+  localPath?: string;
 }
 
 /** SKILL.md frontmatter fields */

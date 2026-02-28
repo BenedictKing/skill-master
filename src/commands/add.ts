@@ -273,8 +273,14 @@ export async function add(args: string[]): Promise<void> {
   try {
     for (const dir of targetDirs) {
       for (const agent of agents) {
+        // Build the original source reference for registry
+        // For git sources, preserve the URL; for local, use the actual path
+        const installSource: SkillSource = parsed.type === 'git'
+          ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir }
+          : { type: 'local', path: dir };
+
         const result = await installSkill({
-          source: { type: 'local', path: dir },
+          source: installSource,
           agent: agent as AgentPlatform | undefined,
           cwd,
           global: flags.global,

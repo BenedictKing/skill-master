@@ -50,7 +50,8 @@ export async function installSkill(options: InstallOptions): Promise<InstallResu
   let sourceDir: string;
 
   if (source.type === 'git') {
-    sourceDir = await cloneRepo(source.url!, source.branch);
+    // If localPath is provided (pre-cloned), use it directly
+    sourceDir = source.localPath ?? await cloneRepo(source.url!, source.branch);
   } else if (source.type === 'local') {
     sourceDir = source.path!;
     if (!existsSync(sourceDir)) {
