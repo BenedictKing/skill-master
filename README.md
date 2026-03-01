@@ -104,40 +104,6 @@ skill-master find      # or: search, f, s
 skill-master update    # or: upgrade
 ```
 
-## Directory Structure
-
-```
-~/.agents/
-├── config/              # Persistent configs (.env files)
-│   ├── my-skill/.env
-│   └── other-skill/.env
-├── skills/              # Skill code (canonical storage)
-│   ├── my-skill/
-│   └── other-skill/
-└── registry.json        # Installed skills index
-
-<project>/
-└── .claude/skills/      # Agent directory (symlinks)
-    ├── my-skill -> ~/.agents/skills/my-skill
-    └── other-skill -> ~/.agents/skills/other-skill
-```
-
-## .env Protection
-
-### Backup Priority
-
-During install/update, searches for existing config in order:
-
-1. `~/.agents/config/<skill>/.env` (persistent, highest priority)
-2. `.claude/skills/<skill>/.env` (current project)
-3. `~/.agents/skills/<skill>/.env` (canonical location)
-
-### Restore Strategy
-
-- Existing `KEY=VALUE` pairs are **never overwritten**
-- New keys from `.env.example` are appended with empty values
-- User comments are preserved
-
 ## Supported Platforms
 
 39 AI coding agents are supported. Auto-detection works for agents with a project directory marker:
@@ -165,26 +131,7 @@ Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Comma
 
 ## Development
 
-```bash
-# Clone repository
-git clone https://github.com/yourusername/skill-master.git
-cd skill-master
-
-# Install dependencies
-npm install
-
-# Development mode
-npm run dev
-
-# Build
-npm run build
-
-# Type check
-npm run lint
-
-# Test
-npm test
-```
+See [CLAUDE.md](./CLAUDE.md) for architecture, development commands, and release workflow.
 
 ## vs npx skills
 

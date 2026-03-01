@@ -24,7 +24,7 @@ npm install -g skill-master
 或直接使用：
 
 ```bash
-npx skill-master install <skill-source>
+npx skill-master add <skill-source>
 ```
 
 ## 快速开始
@@ -33,16 +33,16 @@ npx skill-master install <skill-source>
 
 ```bash
 # 从 GitHub 安装
-skill-master install https://github.com/user/skill-name
+skill-master add https://github.com/user/skill-name
 
 # 从本地路径安装
-skill-master install ./local-skill
+skill-master add ./local-skill
 
 # 指定目标平台
-skill-master install https://github.com/user/skill --agent=cursor
+skill-master add https://github.com/user/skill --agent=cursor
 
 # 使用复制而非符号链接（Windows 推荐）
-skill-master install https://github.com/user/skill --copy
+skill-master add https://github.com/user/skill --copy
 ```
 
 ### 管理环境变量
@@ -84,47 +84,6 @@ skill-master info tavily-web
 skill-master doctor
 ```
 
-## 目录结构
-
-```
-~/.agents/
-├── config/                    # 持久化配置（.env 文件）
-│   ├── tavily-web/.env
-│   └── exa-search/.env
-├── skills/                    # Skill 代码（canonical 存储）
-│   ├── tavily-web/
-│   └── exa-search/
-└── registry.json              # 已安装 skill 索引
-
-<project>/
-└── .claude/skills/            # Agent 目录（符号链接）
-    ├── tavily-web -> ~/.agents/skills/tavily-web
-    └── exa-search -> ~/.agents/skills/exa-search
-```
-
-## .env 保护机制
-
-### 备份优先级
-
-安装/更新时按以下顺序查找现有配置：
-
-1. `~/.agents/config/<skill>/.env` （持久化位置，最高优先级）
-2. `.claude/skills/<skill>/.env` （当前项目）
-3. `~/.agents/skills/<skill>/.env` （canonical 位置）
-
-### 恢复策略
-
-- 用户已有的 `KEY=VALUE` **绝不覆盖**
-- `.env.example` 中新增的 key 追加到末尾，值留空并加注释
-- 保留用户的注释行
-
-### 双写机制
-
-为兼容现有 API 脚本（使用 `path.join(__dirname, '.env')` 加载），.env 同时写入：
-
-- `~/.agents/config/<skill>/.env` （持久化）
-- `<skill-dir>/.env` （兼容现有脚本）
-
 ## 支持的平台
 
 支持 39 个 AI 编程代理。具有项目目录标记的代理支持自动检测：
@@ -150,28 +109,21 @@ Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Comma
 
 </details>
 
-## 开发
+## 命令别名
+
+兼容 `npx skills` 命令：
 
 ```bash
-# 克隆仓库
-git clone https://github.com/user/skill-master.git
-cd skill-master
-
-# 安装依赖
-npm install
-
-# 开发模式
-npm run dev
-
-# 构建
-npm run build
-
-# 类型检查
-npm run lint
-
-# 测试
-npm test
+skill-master add       # 或: a, install, i
+skill-master remove    # 或: rm, r
+skill-master list      # 或: ls
+skill-master find      # 或: search, f, s
+skill-master update    # 或: upgrade
 ```
+
+## 开发
+
+详见 [CLAUDE.md](./CLAUDE.md) 获取架构细节、开发命令和发布流程。
 
 ## 与 `npx skills` 的对比
 
@@ -197,7 +149,7 @@ A: 可以。skill-master 使用独立的 `~/.agents/` 目录，不会影响现�
 
 ### Q: Windows 上符号链接失败怎么办？
 
-A: 使用 `--copy` 参数：`skill-master install <source> --copy`
+A: 使用 `--copy` 参数：`skill-master add <source> --copy`
 
 ### Q: 如何迁移现有的 skill？
 
