@@ -123,6 +123,8 @@ export interface LocalLockEntry {
   computedHash: string;
   /** Relative path to the skill directory within the source (for multi-skill repos) */
   skillDir?: string;
+  /** Name of the plugin this skill belongs to (from .claude-plugin manifest) */
+  pluginName?: string;
 }
 
 /** Project-level lock file structure */

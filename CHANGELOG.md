@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Plugin manifest support for Claude  Code plugin ecosystem (`src/core/plugin-manifest.ts`)
+  - `getPluginSkillPaths()` - Extract skill search paths from `.claude-plugin/marketplace.json` and `plugin.json`
+  - `getPluginGroupings()` - Map skill directories to plugin names for grouping
+- `findAllSkillDirectoriesWithPlugins()` in skill-parser returns `DiscoveredSkill` with optional `pluginName`
+- `LocalLockEntry.pluginName` field to store plugin association in lock file
+- `logger.section()` function for printing grouped section headers
+- `tests/core/plugin-manifest.test.ts` with 6 test cases for plugin manifest parsing
+
+### Changed
+- `cline` agent now uses universal `.agents/skills` directory (aligned with vercel-skills v1.4.3)
+- `list` command groups skills by plugin name when available (falls back to flat list)
+- `add` command saves `pluginName` to local lock file when installing from plugin sources
+- Skill discovery now searches paths declared in plugin manifests first
+
+### Security
+- Plugin manifest paths validated to start with `./` per Claude  Code convention
+- `isContainedIn()` prevents path traversal attacks via `..` segments in manifest paths
+
 ## [0.1.9] - 2026-02-25
 
 ### Added

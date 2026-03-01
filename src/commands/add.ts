@@ -1,6 +1,6 @@
 import { installSkill } from '../core/installer.js';
 import { cloneRepo, parseSource } from '../core/git-source.js';
-import { findAllSkillDirectories, readSkillMd } from '../core/skill-parser.js';
+import { findAllSkillDirectoriesWithPlugins, readSkillMd, type DiscoveredSkill } from '../core/skill-parser.js';
 import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
 import { SkillNotFoundError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
@@ -211,8 +211,8 @@ export async function add(args: string[]): Promise<void> {
     }
   }
 
-  // Discover all skill directories in the source
-  const allSkillDirs = await findAllSkillDirectories(sourceDir, flags.fullDepth);
+  // Discover all skill directories in the source (with plugin info)
+  const allSkillDirs = await findAllSkillDirectoriesWithPlugins(sourceDir, flags.fullDepth);
   if (allSkillDirs.length === 0) {
     throw new SkillNotFoundError(`No SKILL.md found in ${sourceDir}`);
   }
@@ -221,7 +221,7 @@ export async function add(args: string[]): Promise<void> {
   if (flags.list) {
     logger.blank();
     logger.tableHeader('Skill', 'Version', 'Description');
-    for (const dir of allSkillDirs) {
+    for (const { path: dir } of allSkillDirs) {
       const sk = await readSkillMd(dir);
       if (sk) {
         logger.tableRow(
@@ -236,24 +236,24 @@ export async function add(args: string[]): Promise<void> {
   }
 
   // Filter by --skill if specified
-  let targetDirs = allSkillDirs;
+  let targetDirs: DiscoveredSkill[] = allSkillDirs;
   if (flags.skill.length > 0 && !flags.skill.includes('*')) {
     const requested = new Set(flags.skill.map(s => s.toLowerCase()));
-    const filtered: string[] = [];
+    const filtered: DiscoveredSkill[] = [];
 
-    for (const dir of allSkillDirs) {
-      const sk = await readSkillMd(dir);
+    for (const item of allSkillDirs) {
+      const sk = await readSkillMd(item.path);
       if (!sk) continue;
       const name = sk.frontmatter.name.toLowerCase();
-      const dirName = basename(dir).toLowerCase();
+      const dirName = basename(item.path).toLowerCase();
       if (requested.has(name) || requested.has(dirName)) {
-        filtered.push(dir);
+        filtered.push(item);
       }
     }
 
     if (filtered.length === 0) {
       const available = [];
-      for (const dir of allSkillDirs) {
+      for (const { path: dir } of allSkillDirs) {
         const sk = await readSkillMd(dir);
         if (sk) available.push(sk.frontmatter.name);
       }
@@ -271,7 +271,7 @@ export async function add(args: string[]): Promise<void> {
   const agents = flags.agent.length > 0 ? flags.agent : [undefined];
 
   try {
-    for (const dir of targetDirs) {
+    for (const { path: dir, pluginName } of targetDirs) {
       for (const agent of agents) {
         // Build the original source reference for registry
         // For git sources, preserve the URL; for local, use the actual path
@@ -298,6 +298,7 @@ export async function add(args: string[]): Promise<void> {
             sourceType: parsed.type === 'git' ? 'github' : 'local',
             computedHash: await computeSkillFolderHash(result.canonicalPath),
             ...(skillDir && skillDir !== '.' ? { skillDir } : {}),
+            ...(pluginName ? { pluginName } : {}),
           }, cwd);
         }
       }

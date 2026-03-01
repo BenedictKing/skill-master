@@ -1,9 +1,10 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { readdir } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { join, basename, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readTextSafe } from '../utils/fs-helpers.js';
 import { SkillParseError } from '../utils/errors.js';
+import { getPluginSkillPaths, getPluginGroupings } from './plugin-manifest.js';
 import type { ParsedSkill, SkillFrontmatter, Capability } from '../types/index.js';
 
 /** Tool-to-capability reverse mapping for Claude Code tools */
@@ -89,25 +90,52 @@ export async function findSkillDirectory(dir: string): Promise<string | null> {
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build']);
 
+/** Skill discovery result with optional plugin name */
+export interface DiscoveredSkill {
+  path: string;
+  pluginName?: string;
+}
+
 /** Discover all directories containing SKILL.md within a source */
 export async function findAllSkillDirectories(dir: string, fullDepth = false): Promise<string[]> {
+  const results = await findAllSkillDirectoriesWithPlugins(dir, fullDepth);
+  return results.map(r => r.path);
+}
+
+/** Discover all directories containing SKILL.md with plugin grouping info */
+export async function findAllSkillDirectoriesWithPlugins(dir: string, fullDepth = false): Promise<DiscoveredSkill[]> {
+  // Get plugin groupings for this source
+  const pluginGroupings = await getPluginGroupings(dir);
+
+  // Helper to enhance result with plugin name
+  const enhance = (skillPath: string): DiscoveredSkill => {
+    const resolvedPath = resolve(skillPath);
+    const pluginName = pluginGroupings.get(resolvedPath);
+    return { path: skillPath, pluginName };
+  };
+
   if (fullDepth) {
     const results = new Set<string>();
     await walkForSkills(dir, 0, 5, results);
-    return [...results];
+    return [...results].map(enhance);
   }
 
-  const results: string[] = [];
+  const results: DiscoveredSkill[] = [];
 
   // Direct SKILL.md in root
   if (existsSync(join(dir, 'SKILL.md'))) {
-    results.push(dir);
+    results.push(enhance(dir));
     return results;
   }
 
   // Priority search: common skill directory conventions
   const seenPaths = new Set<string>();
+
+  // Get plugin manifest skill paths
+  const pluginSkillPaths = await getPluginSkillPaths(dir);
+
   const priorityDirs = [
+    ...pluginSkillPaths, // Plugin manifest paths first
     join(dir, 'skills'),
     join(dir, 'skills', '.curated'),
     join(dir, 'skills', '.experimental'),
@@ -131,7 +159,7 @@ export async function findAllSkillDirectories(dir: string, fullDepth = false): P
         if (entry.isDirectory()) {
           const skillDir = join(searchDir, entry.name);
           if (existsSync(join(skillDir, 'SKILL.md')) && !seenPaths.has(skillDir)) {
-            results.push(skillDir);
+            results.push(enhance(skillDir));
             seenPaths.add(skillDir);
           }
         }
@@ -149,7 +177,7 @@ export async function findAllSkillDirectories(dir: string, fullDepth = false): P
         if (entry.isDirectory() && !entry.name.startsWith('.') && !SKIP_DIRS.has(entry.name)) {
           const subDir = join(dir, entry.name);
           if (existsSync(join(subDir, 'SKILL.md')) && !seenPaths.has(subDir)) {
-            results.push(subDir);
+            results.push(enhance(subDir));
             seenPaths.add(subDir);
           }
           try {
@@ -158,7 +186,7 @@ export async function findAllSkillDirectories(dir: string, fullDepth = false): P
               if (sub.isDirectory() && !sub.name.startsWith('.') && !SKIP_DIRS.has(sub.name)) {
                 const nested = join(subDir, sub.name);
                 if (existsSync(join(nested, 'SKILL.md')) && !seenPaths.has(nested)) {
-                  results.push(nested);
+                  results.push(enhance(nested));
                   seenPaths.add(nested);
                 }
               }

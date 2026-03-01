@@ -40,6 +40,11 @@ export function blank(): void {
   console.log();
 }
 
+/** Print a section header (for grouping) */
+export function section(title: string): void {
+  console.log(chalk.bold(title));
+}
+
 /** Print a key-value pair */
 export function kv(key: string, value: string): void {
   console.log(`  ${chalk.gray(key + ':')} ${value}`);
