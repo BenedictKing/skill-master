@@ -5,18 +5,19 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  id-token: write  # Required for OIDC trusted publishing
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
@@ -25,7 +26,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Run tests
+        run: npm run test:run
+
       - name: Publish
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
