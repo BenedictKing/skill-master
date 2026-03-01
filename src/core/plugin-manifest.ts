@@ -6,7 +6,7 @@
  * - plugin.json: Single plugin at .claude-plugin/plugin.json
  */
 
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join, dirname, resolve, normalize, sep } from 'node:path';
 
 /**
@@ -120,6 +120,30 @@ export async function getPluginSkillPaths(basePath: string): Promise<string[]> {
 }
 
 /**
+ * Scan a skills/ directory and map each child skill directory to a plugin name.
+ * Used when a plugin manifest declares no explicit skills list.
+ */
+async function scanSkillsDir(
+  skillsDir: string,
+  pluginName: string,
+  basePath: string,
+  groupings: Map<string, string>
+): Promise<void> {
+  try {
+    const entries = await readdir(skillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const skillPath = join(skillsDir, entry.name);
+      if (isContainedIn(skillPath, basePath)) {
+        groupings.set(resolve(skillPath), pluginName);
+      }
+    }
+  } catch {
+    // Directory doesn't exist or unreadable — skip silently
+  }
+}
+
+/**
  * Get a map of skill directory paths to plugin names from plugin manifests.
  * This allows grouping skills by their parent plugin.
  *
@@ -153,6 +177,7 @@ export async function getPluginGroupings(basePath: string): Promise<Map<string, 
         if (!isContainedIn(pluginBase, basePath)) continue;
 
         if (plugin.skills && plugin.skills.length > 0) {
+          // Explicit skill paths declared — map each to this plugin
           for (const skillPath of plugin.skills) {
             // Validate skill path starts with './' (per Claude  Code convention)
             if (!isValidRelativePath(skillPath)) continue;
@@ -163,6 +188,9 @@ export async function getPluginGroupings(basePath: string): Promise<Map<string, 
               groupings.set(resolve(skillDir), plugin.name);
             }
           }
+        } else {
+          // No explicit skills list — scan conventional skills/ directory
+          await scanSkillsDir(join(pluginBase, 'skills'), plugin.name, basePath, groupings);
         }
       }
     }
@@ -174,13 +202,19 @@ export async function getPluginGroupings(basePath: string): Promise<Map<string, 
   try {
     const content = await readFile(join(basePath, '.claude-plugin/plugin.json'), 'utf-8');
     const manifest: PluginManifest = JSON.parse(content);
-    if (manifest.name && manifest.skills && manifest.skills.length > 0) {
-      for (const skillPath of manifest.skills) {
-        if (!isValidRelativePath(skillPath)) continue;
-        const skillDir = join(basePath, skillPath);
-        if (isContainedIn(skillDir, basePath)) {
-          groupings.set(resolve(skillDir), manifest.name);
+    if (manifest.name) {
+      if (manifest.skills && manifest.skills.length > 0) {
+        // Explicit skill paths declared
+        for (const skillPath of manifest.skills) {
+          if (!isValidRelativePath(skillPath)) continue;
+          const skillDir = join(basePath, skillPath);
+          if (isContainedIn(skillDir, basePath)) {
+            groupings.set(resolve(skillDir), manifest.name);
+          }
         }
+      } else {
+        // No explicit skills list — scan conventional skills/ directory
+        await scanSkillsDir(join(basePath, 'skills'), manifest.name, basePath, groupings);
       }
     }
   } catch {

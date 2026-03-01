@@ -134,6 +134,7 @@ export async function restore(args: string[]): Promise<void> {
         sourceType: 'github',
         computedHash: await computeSkillFolderHash(result.canonicalPath),
         ...(entry.skillDir ? { skillDir: entry.skillDir } : {}),
+        ...(entry.pluginName ? { pluginName: entry.pluginName } : {}),
       }, cwd);
       installed++;
     } catch (err) {
@@ -165,6 +166,7 @@ export async function restore(args: string[]): Promise<void> {
         sourceType: 'local',
         computedHash: await computeSkillFolderHash(result.canonicalPath),
         ...(entry.skillDir ? { skillDir: entry.skillDir } : {}),
+        ...(entry.pluginName ? { pluginName: entry.pluginName } : {}),
       }, cwd);
       installed++;
     } catch (err) {
