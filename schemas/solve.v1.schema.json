@@ -1,0 +1,236 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/BenedictKing/skill-master/schemas/solve.v1.schema.json",
+  "title": "skill-master solve --json v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task", "preferences", "candidateCount", "recommendations", "steps", "summary"],
+  "properties": {
+    "task": { "$ref": "#/$defs/taskRequirement" },
+    "preferences": { "$ref": "#/$defs/recommendationPreferences" },
+    "candidateCount": { "type": "number" },
+    "recommendations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/recommendation" }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discovered", "recommended", "installed", "verified"],
+      "properties": {
+        "discovered": { "type": "boolean" },
+        "recommended": { "type": "boolean" },
+        "installed": { "type": "boolean" },
+        "verified": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bestMatch", "preferenceLabels"],
+      "properties": {
+        "bestMatch": { "type": ["string", "null"] },
+        "preferenceLabels": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "installation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skillName", "agentPath", "canonicalPath"],
+      "properties": {
+        "skillName": { "type": "string" },
+        "agentPath": { "type": "string" },
+        "canonicalPath": { "type": "string" }
+      }
+    },
+    "verification": { "$ref": "#/$defs/verifyJson" }
+  },
+  "$defs": {
+    "capability": {
+      "type": "string",
+      "enum": [
+        "shell",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "find_file",
+        "search_content",
+        "sub_task",
+        "web_fetch",
+        "web_search"
+      ]
+    },
+    "candidateProvider": {
+      "type": "string",
+      "enum": ["skills.sh", "github", "local", "node_modules", "plugin-manifest", "registry", "gh-skill", "vercel"]
+    },
+    "candidateRiskLevel": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "installComplexity": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "recommendationTier": {
+      "type": "string",
+      "enum": ["best", "conservative", "aggressive"]
+    },
+    "parsedSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["git", "local"] },
+        "url": { "type": "string" },
+        "path": { "type": "string" },
+        "ref": { "type": "string" },
+        "subpath": { "type": "string" },
+        "skillFilter": { "type": "string" }
+      }
+    },
+    "skillFrontmatter": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "author": { "type": "string" },
+        "description": { "type": "string" },
+        "allowed-tools": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "user-invocable": { "type": "boolean" },
+        "context": { "type": "string", "enum": ["fork"] },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capability" }
+        },
+        "disable-model-invocation": { "type": "boolean" },
+        "argument-hint": { "type": "string" },
+        "model": { "type": "string" },
+        "agent": { "type": "string" },
+        "hooks": { "type": "object" }
+      }
+    },
+    "taskRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "normalized", "keywords", "capabilities", "riskTolerance", "installPreference"],
+      "properties": {
+        "raw": { "type": "string" },
+        "normalized": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "capabilities": { "type": "array", "items": { "$ref": "#/$defs/capability" } },
+        "preferredAgent": { "type": "string" },
+        "riskTolerance": { "$ref": "#/$defs/candidateRiskLevel" },
+        "installPreference": { "type": "string", "enum": ["existing-only", "adapt", "compose"] }
+      }
+    },
+    "recommendationPreferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "safe": { "type": "boolean" },
+        "localFirst": { "type": "boolean" },
+        "noRemote": { "type": "boolean" },
+        "preferInstalled": { "type": "boolean" }
+      }
+    },
+    "skillCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "provider", "name", "source", "installHint", "capabilities", "allowedTools", "envKeys", "issues", "warnings"],
+      "properties": {
+        "id": { "type": "string" },
+        "provider": { "$ref": "#/$defs/candidateProvider" },
+        "name": { "type": "string" },
+        "source": { "type": "string" },
+        "installHint": { "type": "string" },
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "author": { "type": "string" },
+        "path": { "type": "string" },
+        "providerMeta": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        },
+        "pluginName": { "type": "string" },
+        "parsedSource": { "$ref": "#/$defs/parsedSource" },
+        "frontmatter": { "$ref": "#/$defs/skillFrontmatter" },
+        "capabilities": { "type": "array", "items": { "$ref": "#/$defs/capability" } },
+        "allowedTools": { "type": "array", "items": { "type": "string" } },
+        "envKeys": { "type": "array", "items": { "type": "string" } },
+        "issues": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string" },
+        "installs": { "type": "number" },
+        "installed": { "type": "boolean" }
+      }
+    },
+    "evaluationReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateId", "matchScore", "qualityScore", "maintenanceScore", "safetyScore", "overallScore", "installComplexity", "riskLevel", "strengths", "risks", "missingCapabilities", "matchedCapabilities", "notes"],
+      "properties": {
+        "candidateId": { "type": "string" },
+        "matchScore": { "type": "number" },
+        "qualityScore": { "type": "number" },
+        "maintenanceScore": { "type": "number" },
+        "safetyScore": { "type": "number" },
+        "overallScore": { "type": "number" },
+        "installComplexity": { "$ref": "#/$defs/installComplexity" },
+        "riskLevel": { "$ref": "#/$defs/candidateRiskLevel" },
+        "strengths": { "type": "array", "items": { "type": "string" } },
+        "risks": { "type": "array", "items": { "type": "string" } },
+        "missingCapabilities": { "type": "array", "items": { "$ref": "#/$defs/capability" } },
+        "matchedCapabilities": { "type": "array", "items": { "$ref": "#/$defs/capability" } },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "candidate", "evaluation", "rationale"],
+      "properties": {
+        "tier": { "$ref": "#/$defs/recommendationTier" },
+        "candidate": { "$ref": "#/$defs/skillCandidate" },
+        "evaluation": { "$ref": "#/$defs/evaluationReport" },
+        "rationale": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "verifyJson": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skillName", "envStatus", "envMissingKeys", "dependencyWarnings", "conflicts", "messages", "structureHealthy", "smokePassed"],
+      "properties": {
+        "skillName": { "type": "string" },
+        "envStatus": { "type": "string", "enum": ["configured", "missing", "partial"] },
+        "envMissingKeys": { "type": "array", "items": { "type": "string" } },
+        "dependencyWarnings": { "type": "array", "items": { "type": "string" } },
+        "conflicts": { "type": "array", "items": { "type": "string" } },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["severity", "message"],
+            "properties": {
+              "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+              "message": { "type": "string" }
+            }
+          }
+        },
+        "structureHealthy": { "type": "boolean" },
+        "smokePassed": { "type": "boolean" }
+      }
+    }
+  }
+}

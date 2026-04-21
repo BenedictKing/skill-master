@@ -1,3 +1,4 @@
+import type { VerifyJsonV1 } from '../types/contracts.js';
 import { detectSkillConflicts } from '../verify/conflict-check.js';
 import { runSmokeChecks } from '../verify/smoke.js';
 import { verifyInstalledSkill } from '../verify/runtime-check.js';
@@ -22,7 +23,8 @@ export async function verify(args: string[]): Promise<void> {
   });
 
   if (json) {
-    console.log(JSON.stringify(report, null, 2));
+    const output: VerifyJsonV1 = report;
+    console.log(JSON.stringify(output, null, 2));
     return;
   }
 

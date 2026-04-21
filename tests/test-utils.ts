@@ -1,5 +1,7 @@
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import Ajv from 'ajv';
 
 const CLI_PATH = join(import.meta.dirname, '..', 'src', 'cli.ts');
 
@@ -43,4 +45,29 @@ export function runCli(
 export function runCliOutput(args: string[], cwd?: string): string {
   const result = runCli(args, cwd);
   return (result.stdout + result.stderr).trim();
+}
+
+/** Run CLI and parse JSON stdout. */
+export function runCliJson<T = unknown>(args: string[], cwd?: string): { parsed: T; stdout: string; stderr: string; exitCode: number } {
+  const result = runCli(args, cwd);
+  return {
+    ...result,
+    parsed: JSON.parse(result.stdout) as T,
+  };
+}
+
+/** Validate a value against a JSON schema file. */
+export function assertMatchesSchema(schemaPath: string, value: unknown): void {
+  const schema = JSON.parse(readFileSync(schemaPath, 'utf-8'));
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  const validate = ajv.compile(schema);
+  const valid = validate(value);
+  if (!valid) {
+    throw new Error(`Schema validation failed: ${ajv.errorsText(validate.errors, { separator: '\n' })}`);
+  }
+}
+
+/** Resolve a schema path from the repository root. */
+export function getSchemaPath(fileName: string): string {
+  return join(import.meta.dirname, '..', 'schemas', fileName);
 }

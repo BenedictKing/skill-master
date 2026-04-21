@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { runCli } from '../test-utils.js';
+import type { RecommendJsonV1 } from '../../src/types/contracts.js';
+import { assertMatchesSchema, getSchemaPath, runCli, runCliJson } from '../test-utils.js';
 
 describe('recommend command', () => {
   let testDir: string;
@@ -47,12 +48,12 @@ describe('recommend command', () => {
   }, 30000);
 
   it('outputs JSON when requested', () => {
-    const result = runCli(['recommend', 'search web docs', '--json'], testDir);
+    const result = runCliJson<RecommendJsonV1>(['recommend', 'search web docs', '--json'], testDir);
     expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout);
-    expect(parsed.task.normalized).toBe('search web docs');
-    expect(Array.isArray(parsed.recommendations)).toBe(true);
-    expect(parsed.recommendations[0].candidate.name).toBe('doc-helper');
+    assertMatchesSchema(getSchemaPath('recommend.v1.schema.json'), result.parsed);
+    expect(result.parsed.task.normalized).toBe('search web docs');
+    expect(Array.isArray(result.parsed.recommendations)).toBe(true);
+    expect(result.parsed.recommendations[0].candidate.name).toBe('doc-helper');
   }, 30000);
 
   it('can install the best recommendation from local candidates', () => {

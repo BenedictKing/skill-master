@@ -1,4 +1,5 @@
 import { runRecommendation } from '../recommend/ranking.js';
+import type { RecommendJsonV1 } from '../types/contracts.js';
 import * as logger from '../utils/logger.js';
 import type { AgentPlatform, RecommendationPreferences } from '../types/index.js';
 import { formatList, formatPreferences, installRecommendedCandidate } from './shared/recommend-helpers.js';
@@ -88,11 +89,12 @@ export async function recommend(args: string[]): Promise<void> {
   }
 
   if (flags.json) {
-    console.log(JSON.stringify({
+    const output: RecommendJsonV1 = {
       task: run.task,
       preferences,
       recommendations: run.recommendations,
-    }, null, 2));
+    };
+    console.log(JSON.stringify(output, null, 2));
     if (!flags.install) return;
   }
 

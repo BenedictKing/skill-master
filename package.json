@@ -10,7 +10,10 @@
   "files": [
     "dist",
     "bin",
+    "docs",
+    "schemas",
     "README.md",
+    "README.zh-CN.md",
     "LICENSE"
   ],
   "scripts": {
@@ -46,13 +49,14 @@
     "node": ">=18"
   },
   "dependencies": {
-    "yaml": "^2.7.0",
-    "chalk": "^5.4.1"
+    "chalk": "^5.4.1",
+    "yaml": "^2.7.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
     "@types/node": "^22.0.0",
+    "ajv": "^8.18.0",
     "tsup": "^8.3.0",
+    "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }
 }

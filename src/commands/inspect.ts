@@ -1,6 +1,7 @@
 import { discoverCandidates, discoverFromSource, discoverInstalledSkills } from '../discovery/search.js';
 import { buildTaskRequirement } from '../evaluate/matcher.js';
 import { evaluateCandidate } from '../evaluate/scorer.js';
+import type { InspectJsonV1 } from '../types/contracts.js';
 import * as logger from '../utils/logger.js';
 import type { SkillCandidate } from '../types/index.js';
 
@@ -39,11 +40,12 @@ export async function inspect(args: string[]): Promise<void> {
   }));
 
   if (json) {
-    console.log(JSON.stringify({
+    const output: InspectJsonV1 = {
       target,
       task,
       results: inspected,
-    }, null, 2));
+    };
+    console.log(JSON.stringify(output, null, 2));
     return;
   }
 

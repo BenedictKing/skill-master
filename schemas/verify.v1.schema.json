@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/BenedictKing/skill-master/schemas/verify.v1.schema.json",
+  "title": "skill-master verify --json v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["skillName", "envStatus", "envMissingKeys", "dependencyWarnings", "conflicts", "messages", "structureHealthy", "smokePassed"],
+  "properties": {
+    "skillName": { "type": "string" },
+    "envStatus": { "type": "string", "enum": ["configured", "missing", "partial"] },
+    "envMissingKeys": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "dependencyWarnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "structureHealthy": { "type": "boolean" },
+    "smokePassed": { "type": "boolean" }
+  }
+}

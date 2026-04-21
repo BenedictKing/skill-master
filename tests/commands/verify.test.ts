@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { runCli } from '../test-utils.js';
+import type { VerifyJsonV1 } from '../../src/types/contracts.js';
+import { assertMatchesSchema, getSchemaPath, runCli, runCliJson } from '../test-utils.js';
 
 describe('verify command', () => {
   let testDir: string;
@@ -52,10 +53,10 @@ describe('verify command', () => {
     );
     expect(runCli(['add', './skill-src'], testDir).exitCode).toBe(0);
 
-    const result = runCli(['verify', 'verify-json', '--json'], testDir);
+    const result = runCliJson<VerifyJsonV1>(['verify', 'verify-json', '--json'], testDir);
     expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout);
-    expect(parsed.skillName).toBe('verify-json');
-    expect(typeof parsed.smokePassed).toBe('boolean');
+    assertMatchesSchema(getSchemaPath('verify.v1.schema.json'), result.parsed);
+    expect(result.parsed.skillName).toBe('verify-json');
+    expect(typeof result.parsed.smokePassed).toBe('boolean');
   }, 30000);
 });

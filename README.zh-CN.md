@@ -152,6 +152,15 @@ skill-master compose <source...> --json
 skill-master solve "<task>" --json
 ```
 
+字段级契约与 schema 入口：
+
+- [CLI JSON 契约说明](./docs/contracts/cli-json.md)
+- [recommend v1 schema](./schemas/recommend.v1.schema.json)
+- [solve v1 schema](./schemas/solve.v1.schema.json)
+- [verify v1 schema](./schemas/verify.v1.schema.json)
+
+`find`、`inspect`、`compose` 已在契约文档中说明，但本轮未单独提供 schema。
+
 ## 推荐偏好参数
 
 `recommend` 与 `solve` 支持偏好控制：

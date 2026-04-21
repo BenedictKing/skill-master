@@ -157,6 +157,15 @@ skill-master compose <source...> --json
 skill-master solve "<task>" --json
 ```
 
+Field-level contracts and stable schema entry points:
+
+- [CLI JSON contract](./docs/contracts/cli-json.en.md)
+- [recommend v1 schema](./schemas/recommend.v1.schema.json)
+- [solve v1 schema](./schemas/solve.v1.schema.json)
+- [verify v1 schema](./schemas/verify.v1.schema.json)
+
+`find`, `inspect`, and `compose` are documented in the contract doc, but do not ship a dedicated schema in this round.
+
 ## Recommendation Preferences
 
 `recommend` and `solve` support preference tuning:

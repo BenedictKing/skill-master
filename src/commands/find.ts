@@ -1,4 +1,5 @@
 import { discoverCandidates } from '../discovery/search.js';
+import type { FindJsonV1 } from '../types/contracts.js';
 import * as logger from '../utils/logger.js';
 
 /** find command — discover skills from multiple sources */
@@ -25,7 +26,8 @@ export async function find(args: string[]): Promise<void> {
     const candidates = await discoverCandidates(query, process.cwd());
 
     if (json) {
-      console.log(JSON.stringify({ query, results: candidates }, null, 2));
+      const output: FindJsonV1 = { query, results: candidates };
+      console.log(JSON.stringify(output, null, 2));
       return;
     }
 

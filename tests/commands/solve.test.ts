@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { runCli } from '../test-utils.js';
+import type { SolveJsonV1 } from '../../src/types/contracts.js';
+import { assertMatchesSchema, getSchemaPath, runCli, runCliJson } from '../test-utils.js';
 
 describe('solve command', () => {
   let testDir: string;
@@ -28,31 +29,30 @@ describe('solve command', () => {
   }, 15000);
 
   it('outputs JSON orchestrator state when requested', () => {
-    const result = runCli(['solve', 'search web docs', '--json'], testDir);
+    const result = runCliJson<SolveJsonV1>(['solve', 'search web docs', '--json'], testDir);
     expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout);
-    expect(parsed.task.normalized).toBe('search web docs');
-    expect(parsed.steps.discovered).toBe(true);
-    expect(parsed.steps.recommended).toBe(true);
-    expect(parsed.summary.bestMatch).toBe('solver-skill');
+    assertMatchesSchema(getSchemaPath('solve.v1.schema.json'), result.parsed);
+    expect(result.parsed.task.normalized).toBe('search web docs');
+    expect(result.parsed.steps.discovered).toBe(true);
+    expect(result.parsed.steps.recommended).toBe(true);
+    expect(result.parsed.summary.bestMatch).toBe('solver-skill');
   }, 30000);
 
   it('supports preference passthrough in JSON mode', () => {
-    const result = runCli(['solve', 'search web docs', '--json', '--safe', '--local-first'], testDir);
+    const result = runCliJson<SolveJsonV1>(['solve', 'search web docs', '--json', '--safe', '--local-first'], testDir);
     expect(result.exitCode).toBe(0);
-    const parsed = JSON.parse(result.stdout);
-    expect(parsed.preferences.safe).toBe(true);
-    expect(parsed.preferences.localFirst).toBe(true);
+    assertMatchesSchema(getSchemaPath('solve.v1.schema.json'), result.parsed);
+    expect(result.parsed.preferences.safe).toBe(true);
+    expect(result.parsed.preferences.localFirst).toBe(true);
   }, 30000);
 
   it('can install and verify in one solve run', () => {
-    const result = runCli(['solve', 'search web docs', '--install', '--verify', '--json'], testDir);
+    const result = runCliJson<SolveJsonV1>(['solve', 'search web docs', '--install', '--verify', '--json'], testDir);
     expect(result.exitCode).toBe(0);
-    const jsonStart = result.stdout.indexOf('{');
-    const parsed = JSON.parse(result.stdout.slice(jsonStart));
-    expect(parsed.steps.installed).toBe(true);
-    expect(parsed.steps.verified).toBe(true);
-    expect(parsed.installation.skillName).toBe('solver-skill');
+    assertMatchesSchema(getSchemaPath('solve.v1.schema.json'), result.parsed);
+    expect(result.parsed.steps.installed).toBe(true);
+    expect(result.parsed.steps.verified).toBe(true);
+    expect(result.parsed.installation?.skillName).toBe('solver-skill');
     expect(existsSync(join(testDir, 'skills-lock.json'))).toBe(true);
   }, 30000);
 });

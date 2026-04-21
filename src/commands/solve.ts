@@ -1,5 +1,6 @@
 import { discoverCandidates } from '../discovery/search.js';
 import { runRecommendation } from '../recommend/ranking.js';
+import type { SolveJsonV1, VerifyJsonV1 } from '../types/contracts.js';
 import { verifyInstalledSkill } from '../verify/runtime-check.js';
 import { runSmokeChecks } from '../verify/smoke.js';
 import { detectSkillConflicts } from '../verify/conflict-check.js';
@@ -72,7 +73,7 @@ function parseSolveArgs(args: string[]): { task: string; flags: SolveFlags } {
   };
 }
 
-async function verifySkill(skillName: string, cwd: string) {
+async function verifySkill(skillName: string, cwd: string): Promise<VerifyJsonV1> {
   const baseReport = await verifyInstalledSkill(skillName, cwd);
   const conflicts = await detectSkillConflicts(skillName);
   return runSmokeChecks({
@@ -114,7 +115,7 @@ export async function solve(args: string[]): Promise<void> {
   const recommendationRun = await runRecommendation(task, process.cwd(), preferences);
   const best = recommendationRun.recommendations[0];
 
-  const payload: Record<string, unknown> = {
+  const payload: SolveJsonV1 = {
     task: recommendationRun.task,
     preferences,
     candidateCount: candidates.length,
@@ -147,17 +148,17 @@ export async function solve(args: string[]): Promise<void> {
           process.cwd(),
           'Installed via solve --install; run or request verify for a full validation pass.',
         );
-    payload['installation'] = installResult;
-    (payload.steps as Record<string, boolean>).installed = true;
+    payload.installation = installResult;
+    payload.steps.installed = true;
   }
 
   const verifyTarget = best?.candidate.installed
     ? best.candidate.name
-    : (payload['installation'] as { skillName?: string } | undefined)?.skillName;
+    : payload.installation?.skillName;
 
   if (flags.verify && verifyTarget) {
-    payload['verification'] = await verifySkill(verifyTarget, process.cwd());
-    (payload.steps as Record<string, boolean>).verified = true;
+    payload.verification = await verifySkill(verifyTarget, process.cwd());
+    payload.steps.verified = true;
   }
 
   if (flags.json) {
@@ -174,14 +175,14 @@ export async function solve(args: string[]): Promise<void> {
   logger.kv('Install Requested', String(flags.install));
   logger.kv('Verify Requested', String(flags.verify));
 
-  if (payload['installation']) {
-    const installation = payload['installation'] as { skillName: string; agentPath: string; canonicalPath: string };
+  if (payload.installation) {
+    const installation = payload.installation;
     logger.kv('Installed Skill', installation.skillName);
     logger.kv('Agent Path', installation.agentPath);
   }
 
-  if (payload['verification']) {
-    const verification = payload['verification'] as { smokePassed: boolean; envStatus: string };
+  if (payload.verification) {
+    const verification = payload.verification;
     logger.kv('Verification', `smoke=${verification.smokePassed}, env=${verification.envStatus}`);
   }
 

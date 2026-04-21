@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { composeSkills } from '../compose/generate.js';
+import type { ComposeJsonV1 } from '../types/contracts.js';
 import { mergeStrategyDescription } from '../compose/merge.js';
 import { resolveComposeSource } from '../compose/resolve.js';
 import * as logger from '../utils/logger.js';
@@ -63,11 +64,12 @@ export async function compose(args: string[]): Promise<void> {
   });
 
   if (flags.json) {
-    console.log(JSON.stringify({
+    const output: ComposeJsonV1 = {
       inputSources: sources,
       resolvedSources,
       result,
-    }, null, 2));
+    };
+    console.log(JSON.stringify(output, null, 2));
     return;
   }
 
