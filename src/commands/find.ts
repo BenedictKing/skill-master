@@ -1,13 +1,15 @@
+import { discoverCandidates } from '../discovery/search.js';
 import * as logger from '../utils/logger.js';
 
-/** find command — search for skills from the registry */
+/** find command — discover skills from multiple sources */
 export async function find(args: string[]): Promise<void> {
+  const json = args.includes('--json');
   const query = args.filter(a => !a.startsWith('-')).join(' ').trim();
 
   if (!query) {
-    console.log('Usage: skill-master find <query>');
+    console.log('Usage: skill-master find <query> [--json]');
     console.log('');
-    console.log('Search for skills in the online registry.');
+    console.log('Search and discover skills from multiple sources.');
     console.log('');
     console.log('Examples:');
     console.log('  skill-master find git');
@@ -15,55 +17,36 @@ export async function find(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  logger.info(`Searching for "${query}"...`);
+  if (!json) {
+    logger.info(`Searching for "${query}"...`);
+  }
 
   try {
-    const url = `https://skills.sh/api/search?q=${encodeURIComponent(query)}`;
-    const response = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const candidates = await discoverCandidates(query, process.cwd());
 
-    if (!response.ok) {
-      logger.error(`Search API returned ${response.status}: ${response.statusText}`);
-      process.exit(1);
+    if (json) {
+      console.log(JSON.stringify({ query, results: candidates }, null, 2));
+      return;
     }
 
-    const data = await response.json() as SearchResponse;
-    const skills = data.skills ?? [];
-
-    if (skills.length === 0) {
+    if (candidates.length === 0) {
       logger.info('No skills found matching your query.');
       return;
     }
 
     logger.blank();
-    logger.tableHeader('Name', 'Source', 'Installs');
+    logger.tableHeader('Name', 'Provider', 'Install Hint');
 
-    for (const item of skills) {
+    for (const item of candidates.slice(0, 25)) {
       logger.tableRow(
         item.name ?? '—',
-        item.source ?? '—',
-        String(item.installs ?? 0),
+        item.provider ?? '—',
+        item.installHint ?? item.source ?? '—',
       );
     }
     logger.blank();
   } catch (err) {
-    if ((err as Error).name === 'TimeoutError') {
-      logger.error('Search request timed out. Please try again.');
-    } else {
-      logger.error(`Search failed: ${(err as Error).message}`);
-    }
+    logger.error(`Search failed: ${(err as Error).message}`);
     process.exit(1);
   }
-}
-
-interface SearchResult {
-  name?: string;
-  source?: string;
-  installs?: number;
-}
-
-interface SearchResponse {
-  skills?: SearchResult[];
 }

@@ -15,6 +15,21 @@ export type Capability =
   | 'web_fetch'
   | 'web_search';
 
+export type CandidateProvider =
+  | 'skills.sh'
+  | 'github'
+  | 'local'
+  | 'node_modules'
+  | 'plugin-manifest'
+  | 'registry'
+  | 'gh-skill'
+  | 'vercel';
+
+export type CandidateRiskLevel = 'low' | 'medium' | 'high';
+export type InstallComplexity = 'low' | 'medium' | 'high';
+export type RecommendationTier = 'best' | 'conservative' | 'aggressive';
+export type VerificationSeverity = 'info' | 'warning' | 'error';
+
 /** Source of a skill: either a git URL or a local filesystem path */
 export interface SkillSource {
   type: 'git' | 'local';
@@ -59,6 +74,101 @@ export interface ParsedSource {
   ref?: string;
   subpath?: string;
   skillFilter?: string;
+}
+
+export interface TaskRequirement {
+  raw: string;
+  normalized: string;
+  keywords: string[];
+  capabilities: Capability[];
+  preferredAgent?: AgentPlatform;
+  riskTolerance: CandidateRiskLevel;
+  installPreference: 'existing-only' | 'adapt' | 'compose';
+}
+
+export interface RecommendationPreferences {
+  safe?: boolean;
+  localFirst?: boolean;
+  noRemote?: boolean;
+  preferInstalled?: boolean;
+}
+
+export interface SkillCandidate {
+  id: string;
+  provider: CandidateProvider;
+  name: string;
+  source: string;
+  installHint: string;
+  description?: string;
+  version?: string;
+  author?: string;
+  path?: string;
+  providerMeta?: Record<string, string | number | boolean | null>;
+  pluginName?: string;
+  parsedSource?: ParsedSource;
+  frontmatter?: SkillFrontmatter;
+  capabilities: Capability[];
+  allowedTools: string[];
+  envKeys: string[];
+  issues: string[];
+  warnings: string[];
+  updatedAt?: string;
+  installs?: number;
+  installed?: boolean;
+}
+
+export interface EvaluationReport {
+  candidateId: string;
+  matchScore: number;
+  qualityScore: number;
+  maintenanceScore: number;
+  safetyScore: number;
+  overallScore: number;
+  installComplexity: InstallComplexity;
+  riskLevel: CandidateRiskLevel;
+  strengths: string[];
+  risks: string[];
+  missingCapabilities: Capability[];
+  matchedCapabilities: Capability[];
+  notes: string[];
+}
+
+export interface Recommendation {
+  tier: RecommendationTier;
+  candidate: SkillCandidate;
+  evaluation: EvaluationReport;
+  rationale: string[];
+}
+
+export interface VerificationMessage {
+  severity: VerificationSeverity;
+  message: string;
+}
+
+export interface VerificationReport {
+  skillName: string;
+  envStatus: EnvStatus;
+  envMissingKeys: string[];
+  dependencyWarnings: string[];
+  conflicts: string[];
+  messages: VerificationMessage[];
+  structureHealthy: boolean;
+  smokePassed: boolean;
+}
+
+export interface CompositionRequest {
+  mode: 'adapt' | 'merge' | 'generate';
+  task?: string;
+  outputDir: string;
+  skillNames?: string[];
+  sources?: string[];
+}
+
+export interface CompositionResult {
+  outputDir: string;
+  files: string[];
+  summary: string[];
+  sources: string[];
 }
 
 /** Options for the install command */
@@ -116,6 +226,19 @@ export type EnvStatus = 'configured' | 'missing' | 'partial';
 /** Installation mode: symlink or copy */
 export type InstallMode = 'symlink' | 'copy';
 
+export interface LockVerificationSnapshot {
+  checked_at: string;
+  envStatus: EnvStatus;
+  conflicts?: string[];
+  warnings?: string[];
+  smokePassed?: boolean;
+}
+
+export interface LockCompositionSource {
+  kind: 'task' | 'skill' | 'source';
+  value: string;
+}
+
 /** Local lock file entry for a skill */
 export interface LocalLockEntry {
   source: string;
@@ -125,6 +248,8 @@ export interface LocalLockEntry {
   skillDir?: string;
   /** Name of the plugin this skill belongs to (from .claude-plugin manifest) */
   pluginName?: string;
+  verification?: LockVerificationSnapshot;
+  composedFrom?: LockCompositionSource[];
 }
 
 /** Project-level lock file structure */

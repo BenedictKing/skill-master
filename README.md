@@ -2,7 +2,17 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-Cross-platform skill package manager for AI coding agents, fully compatible with `npx skills` CLI.
+Cross-platform skill lifecycle manager for AI coding agents. It still installs and manages skills reliably, and now also helps with **discovery, inspection, recommendation, verification, composition, and orchestration**.
+
+## What’s New
+
+- ✅ **Task-to-skill recommendation** — Recommend skills from a user task with explainable scoring
+- ✅ **Static inspection** — Inspect candidate skills before installation
+- ✅ **Post-install verification** — Verify env, structure, conflicts, and smoke checks
+- ✅ **Skill composition** — Adapt, merge, or generate skill outputs
+- ✅ **Structured JSON interfaces** — `find`, `inspect`, `recommend`, `verify`, `compose`, and `solve` can now serve as machine-consumable interfaces
+- ✅ **Solve workflow** — `solve` orchestrates discovery, recommendation, optional install, and optional verify
+- ✅ **Design doc included** — See [docs/skill-lifecycle-platform.md](./docs/skill-lifecycle-platform.md)
 
 ## Features
 
@@ -27,6 +37,39 @@ npx skill-master add <source>
 
 ## Quick Start
 
+### Discover, Inspect, and Recommend
+
+```bash
+# Discover candidates
+skill-master find "code review"
+skill-master find "code review" --json
+
+# Inspect a source or installed skill
+skill-master inspect owner/repo
+skill-master inspect my-skill --json
+
+# Recommend skills from a task
+skill-master recommend "monitor deploy status"
+skill-master recommend "monitor deploy status" --safe --local-first
+skill-master recommend "monitor deploy status" --json
+
+# Recommend and install best match
+skill-master recommend "fetch latest library docs" --install
+```
+
+### Solve a Task End-to-End
+
+```bash
+# Discovery + recommendation
+skill-master solve "search web docs"
+
+# Structured orchestration output
+skill-master solve "search web docs" --json
+
+# Orchestrate recommendation, install, and verify
+skill-master solve "search web docs" --install --verify --json
+```
+
 ### Install Skills
 
 ```bash
@@ -42,6 +85,18 @@ skill-master add owner/repo -a claude-code cursor
 
 # Copy mode (recommended for Windows)
 skill-master add owner/repo --copy
+```
+
+### Verify and Compose
+
+```bash
+# Verify installed skill
+skill-master verify my-skill
+skill-master verify my-skill --json
+
+# Compose a new skill output from multiple sources
+skill-master compose path/to/skill-a path/to/skill-b -o ./generated-skill
+skill-master compose path/to/skill-a path/to/skill-b -o ./generated-skill --json
 ```
 
 ### Manage Environment Variables
@@ -76,9 +131,6 @@ skill-master remove my-skill --purge
 # List installed skills
 skill-master list
 
-# Search for skills
-skill-master find "code review"
-
 # Check for updates
 skill-master check
 
@@ -90,6 +142,30 @@ skill-master info my-skill
 
 # Run diagnostics
 skill-master doctor
+```
+
+## JSON Interfaces
+
+These commands now support structured output for scripting and higher-level products:
+
+```bash
+skill-master find <query> --json
+skill-master inspect <source|skill> --json
+skill-master recommend "<task>" --json
+skill-master verify <skill-name> --json
+skill-master compose <source...> --json
+skill-master solve "<task>" --json
+```
+
+## Recommendation Preferences
+
+`recommend` and `solve` support preference tuning:
+
+```bash
+--safe              prefer lower-risk candidates
+--local-first       boost local and project candidates
+--no-remote         filter out remote-only candidates
+--prefer-installed  boost already installed skills
 ```
 
 ## Command Aliases
@@ -133,6 +209,10 @@ Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Comma
 
 See [CLAUDE.md](./CLAUDE.md) for architecture, development commands, and release workflow.
 
+## Design
+
+See [docs/skill-lifecycle-platform.md](./docs/skill-lifecycle-platform.md) for the full platform design.
+
 ## vs npx skills
 
 | Feature | npx skills | skill-master |
@@ -141,6 +221,11 @@ See [CLAUDE.md](./CLAUDE.md) for architecture, development commands, and release
 | Multi-Platform | ❌ Claude Code only | ✅ 39 platforms |
 | Config Management | ❌ None | ✅ env commands |
 | Diagnostics | ❌ None | ✅ doctor command |
+| Discovery & Recommendation | ❌ Minimal | ✅ Multi-source + recommend |
+| Verification | ❌ None | ✅ verify command |
+| Composition | ❌ None | ✅ compose command |
+| Orchestration | ❌ None | ✅ solve command |
+| Structured JSON API | ❌ None | ✅ Core lifecycle commands support `--json` |
 | Symlinks | ✅ | ✅ + copy mode |
 | Git Install | ✅ | ✅ |
 | Local Install | ✅ | ✅ |
@@ -149,7 +234,7 @@ See [CLAUDE.md](./CLAUDE.md) for architecture, development commands, and release
 
 ### Why skill-master?
 
-`npx skills add` executes `rm -rf` during install/update, deleting `.env` files. Users must reconfigure API keys after every update. skill-master solves this with intelligent backup.
+`npx skills add` executes `rm -rf` during install/update, deleting `.env` files. Users must reconfigure API keys after every update. skill-master solves this with intelligent backup and now also helps users choose, verify, and orchestrate skills.
 
 ### Can it coexist with npx skills?
 

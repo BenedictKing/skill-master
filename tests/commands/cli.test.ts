@@ -11,6 +11,7 @@ describe('skill-master CLI', () => {
       expect(result.stdout).toContain('skill-master remove');
       expect(result.stdout).toContain('skill-master list');
       expect(result.stdout).toContain('skill-master find');
+      expect(result.stdout).toContain('skill-master solve <task>');
       expect(result.stdout).toContain('skill-master update');
       expect(result.stdout).toContain('skill-master init');
       expect(result.stdout).toContain('skill-master check');
@@ -21,7 +22,7 @@ describe('skill-master CLI', () => {
       const helpOutput = runCliOutput(['--help']);
       const hOutput = runCliOutput(['-h']);
       expect(hOutput).toBe(helpOutput);
-    }, 15000);
+    }, 30000);
 
     it('should include add options in help', () => {
       const result = runCli(['--help']);

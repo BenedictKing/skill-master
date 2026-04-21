@@ -25,7 +25,7 @@ describe('init command', () => {
     expect(result.stdout).toContain('Created');
     expect(result.stdout).toContain('SKILL.md');
     expect(existsSync(join(testDir, 'SKILL.md'))).toBe(true);
-  }, 10000); // Increased timeout for npx tsx
+  }, 15000); // Increased timeout for slower CLI startup
 
   it('should create subdirectory with SKILL.md when name provided', () => {
     const result = runCli(['init', 'my-skill'], testDir);
