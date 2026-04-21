@@ -1,6 +1,20 @@
 import chalk from 'chalk';
 
 const PREFIX = chalk.blue('skill-master');
+const DEFAULT_TABLE_WIDTH = 24;
+
+function formatTableCell(value: string, width: number): string {
+  if (value.length > width) {
+    return value.slice(0, width - 3) + '...';
+  }
+  return value.padEnd(width);
+}
+
+function formatTable(cols: string[], widths?: number[]): string {
+  return cols
+    .map((col, index) => formatTableCell(col, widths?.[index] ?? DEFAULT_TABLE_WIDTH))
+    .join('  ');
+}
 
 /** Informational message */
 export function info(msg: string): void {
@@ -52,11 +66,24 @@ export function kv(key: string, value: string): void {
 
 /** Print a table header */
 export function tableHeader(...cols: string[]): void {
-  console.log(chalk.bold(cols.map(c => c.padEnd(20)).join('')));
-  console.log(chalk.gray('─'.repeat(cols.length * 20)));
+  const formatted = formatTable(cols);
+  console.log(chalk.bold(formatted));
+  console.log(chalk.gray('─'.repeat(formatted.length)));
 }
 
 /** Print a table row */
 export function tableRow(...cols: string[]): void {
-  console.log(cols.map(c => c.padEnd(20)).join(''));
+  console.log(formatTable(cols));
+}
+
+/** Print a table header with custom widths */
+export function tableHeaderWithWidths(widths: number[], ...cols: string[]): void {
+  const formatted = formatTable(cols, widths);
+  console.log(chalk.bold(formatted));
+  console.log(chalk.gray('─'.repeat(formatted.length)));
+}
+
+/** Print a table row with custom widths */
+export function tableRowWithWidths(widths: number[], ...cols: string[]): void {
+  console.log(formatTable(cols, widths));
 }
