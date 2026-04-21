@@ -1,14 +1,11 @@
-import { relative } from 'node:path';
 import { discoverCandidates } from '../discovery/search.js';
 import { runRecommendation } from '../recommend/ranking.js';
 import { verifyInstalledSkill } from '../verify/runtime-check.js';
 import { runSmokeChecks } from '../verify/smoke.js';
 import { detectSkillConflicts } from '../verify/conflict-check.js';
-import { installSkill } from '../core/installer.js';
-import { parseSource } from '../core/git-source.js';
-import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
 import * as logger from '../utils/logger.js';
-import type { AgentPlatform, RecommendationPreferences, SkillSource } from '../types/index.js';
+import type { AgentPlatform, RecommendationPreferences } from '../types/index.js';
+import { formatList, formatPreferences, installRecommendedCandidate } from './shared/recommend-helpers.js';
 
 interface SolveFlags extends RecommendationPreferences {
   install: boolean;
@@ -75,79 +72,6 @@ function parseSolveArgs(args: string[]): { task: string; flags: SolveFlags } {
   };
 }
 
-function formatList(items: string[]): string {
-  return items.length > 0 ? items.join(', ') : '-';
-}
-
-function formatPreferences(flags: SolveFlags): string[] {
-  const preferences: string[] = [];
-  if (flags.safe) preferences.push('safe');
-  if (flags.localFirst) preferences.push('local-first');
-  if (flags.noRemote) preferences.push('no-remote');
-  if (flags.preferInstalled) preferences.push('prefer-installed');
-  return preferences;
-}
-
-async function installRecommendedCandidate(
-  task: string,
-  recommendation: Awaited<ReturnType<typeof runRecommendation>>['recommendations'][number],
-  agent: AgentPlatform | undefined,
-  cwd: string,
-): Promise<{ skillName: string; agentPath: string; canonicalPath: string }> {
-  const candidate = recommendation.candidate;
-  let installSource: SkillSource;
-  let skillDir: string | undefined;
-
-  if (candidate.path) {
-    skillDir = candidate.path;
-  }
-
-  if (candidate.provider === 'github') {
-    const parsed = candidate.parsedSource ?? parseSource(candidate.source);
-    installSource = skillDir
-      ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: skillDir }
-      : { type: 'git', url: parsed.url!, branch: parsed.ref };
-  } else if (skillDir) {
-    installSource = { type: 'local', path: skillDir };
-  } else {
-    const parsed = parseSource(candidate.installHint);
-    installSource = parsed.type === 'git'
-      ? { type: 'git', url: parsed.url!, branch: parsed.ref }
-      : { type: 'local', path: parsed.path! };
-    skillDir = parsed.subpath;
-  }
-
-  const result = await installSkill({
-    source: installSource,
-    agent,
-    cwd,
-  });
-
-  await addSkillToLocalLock(result.skillName, {
-    source: candidate.source,
-    sourceType: candidate.provider === 'github' || candidate.provider === 'skills.sh' ? 'github' : 'local',
-    computedHash: await computeSkillFolderHash(result.canonicalPath),
-    ...(skillDir ? { skillDir: relative(cwd, skillDir).startsWith('..') ? skillDir : relative(cwd, skillDir) } : {}),
-    verification: {
-      checked_at: new Date().toISOString(),
-      envStatus: 'missing',
-      warnings: ['Installed via solve --install; run or request verify for a full validation pass.'],
-      smokePassed: false,
-    },
-    composedFrom: [
-      { kind: 'task', value: task },
-      { kind: 'source', value: candidate.source },
-      { kind: 'skill', value: candidate.name },
-    ],
-  }, cwd);
-
-  return {
-    skillName: result.skillName,
-    agentPath: result.agentPath,
-    canonicalPath: result.canonicalPath,
-  };
-}
-
 async function verifySkill(skillName: string, cwd: string) {
   const baseReport = await verifyInstalledSkill(skillName, cwd);
   const conflicts = await detectSkillConflicts(skillName);
@@ -209,8 +133,20 @@ export async function solve(args: string[]): Promise<void> {
 
   if (flags.install && best) {
     const installResult = flags.json
-      ? await runSilenced(() => installRecommendedCandidate(task, best, flags.agent, process.cwd()))
-      : await installRecommendedCandidate(task, best, flags.agent, process.cwd());
+      ? await runSilenced(() => installRecommendedCandidate(
+          task,
+          best,
+          flags.agent,
+          process.cwd(),
+          'Installed via solve --install; run or request verify for a full validation pass.',
+        ))
+      : await installRecommendedCandidate(
+          task,
+          best,
+          flags.agent,
+          process.cwd(),
+          'Installed via solve --install; run or request verify for a full validation pass.',
+        );
     payload['installation'] = installResult;
     (payload.steps as Record<string, boolean>).installed = true;
   }
