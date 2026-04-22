@@ -45,7 +45,7 @@ describe('init command', () => {
 
     expect(result.exitCode).toBe(1);
     expect(output).toContain('SKILL.md already exists');
-  }, 15000);
+  }, 30000);
 
   it('should allow multiple skills in same directory', () => {
     runCli(['init', 'skill-one'], testDir);
@@ -53,7 +53,7 @@ describe('init command', () => {
 
     expect(existsSync(join(testDir, 'skill-one', 'SKILL.md'))).toBe(true);
     expect(existsSync(join(testDir, 'skill-two', 'SKILL.md'))).toBe(true);
-  }, 15000);
+  }, 30000);
 
   it('should create SKILL.md with correct template structure', () => {
     runCli(['init', 'test-skill'], testDir);

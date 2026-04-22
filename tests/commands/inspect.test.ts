@@ -36,6 +36,14 @@ describe('inspect command', () => {
     rmSync(testDir, { recursive: true, force: true });
   });
 
+  it('shows usage when source is missing', () => {
+    const result = runCli(['inspect']);
+    const output = result.stdout + result.stderr;
+
+    expect(output).toContain('Usage: skill-master inspect <source|skill> [--json]');
+    expect(result.exitCode).toBe(0);
+  }, 15000);
+
   it('inspects local skill source with detailed scores', () => {
     const result = runCli(['inspect', testDir]);
     const output = result.stdout + result.stderr;

@@ -11,10 +11,19 @@ describe('skill-master CLI', () => {
       expect(result.stdout).toContain('skill-master remove');
       expect(result.stdout).toContain('skill-master list');
       expect(result.stdout).toContain('skill-master find');
+      expect(result.stdout).toContain('skill-master inspect <source|skill>');
+      expect(result.stdout).toContain('skill-master recommend <task>');
+      expect(result.stdout).toContain('skill-master verify <skill-name>');
+      expect(result.stdout).toContain('skill-master compose [sources...]');
       expect(result.stdout).toContain('skill-master solve <task>');
-      expect(result.stdout).toContain('skill-master update');
-      expect(result.stdout).toContain('skill-master init');
+      expect(result.stdout).toContain('skill-master update [skill]');
+      expect(result.stdout).toContain('skill-master sync [options]');
+      expect(result.stdout).toContain('skill-master restore');
+      expect(result.stdout).toContain('skill-master init [name]');
       expect(result.stdout).toContain('skill-master check');
+      expect(result.stdout).toContain('skill-master env <list|set|edit>');
+      expect(result.stdout).toContain('skill-master info <skill-name>');
+      expect(result.stdout).toContain('skill-master doctor');
       expect(result.exitCode).toBe(0);
     }, 10000);
 
