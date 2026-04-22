@@ -183,5 +183,36 @@ describe('add command', () => {
       expect(result.flags.copy).toBe(true);
       expect(result.flags.force).toBe(true);
     });
+
+    // gh skill style positional args
+    it('should parse source and skill as positional args', () => {
+      const result = parseAddFlags(['owner/repo', 'skill-name']);
+      expect(result.source).toBe('owner/repo');
+      expect(result.flags.skill).toEqual(['skill-name']);
+    });
+
+    it('should merge positional skill with --skill flag', () => {
+      const result = parseAddFlags(['owner/repo', 'skill-a', '-s', 'skill-b']);
+      expect(result.source).toBe('owner/repo');
+      // Positional skill is appended after flag skills
+      expect(result.flags.skill).toContain('skill-a');
+      expect(result.flags.skill).toContain('skill-b');
+      expect(result.flags.skill.length).toBe(2);
+    });
+
+    it('should handle source@skill with positional skill', () => {
+      const result = parseAddFlags(['owner/repo@skill-a', 'skill-b']);
+      expect(result.source).toBe('owner/repo@skill-a');
+      // parseAddFlags only extracts positional skill, @skill is merged in add()
+      expect(result.flags.skill).toEqual(['skill-b']);
+    });
+
+    it('should parse positional skill with flags', () => {
+      const result = parseAddFlags(['owner/repo', 'skill-name', '-g', '-y']);
+      expect(result.source).toBe('owner/repo');
+      expect(result.flags.skill).toEqual(['skill-name']);
+      expect(result.flags.global).toBe(true);
+      expect(result.flags.yes).toBe(true);
+    });
   });
 });

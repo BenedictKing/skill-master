@@ -3,6 +3,7 @@ import { buildTaskRequirement } from '../evaluate/matcher.js';
 import { evaluateCandidate } from '../evaluate/scorer.js';
 import type { InspectJsonV1 } from '../types/contracts.js';
 import * as logger from '../utils/logger.js';
+import { parseSourceAndSkill } from '../utils/parse-positional.js';
 import type { SkillCandidate } from '../types/index.js';
 
 function formatList(items: string[]): string {
@@ -11,14 +12,18 @@ function formatList(items: string[]): string {
 
 export async function inspect(args: string[]): Promise<void> {
   const json = args.includes('--json');
-  const target = args.filter((arg) => !arg.startsWith('-')).join(' ').trim();
+  const { source, skill } = parseSourceAndSkill(args);
 
-  if (!target) {
+  if (!source) {
     console.log('Usage: skill-master inspect <source|skill> [--json]');
+    console.log('       skill-master preview <repo> <skill> [--json]');
     console.log('');
     console.log('Inspect a skill source or installed skill with static analysis.');
     process.exit(0);
   }
+
+  // If skill specified, normalize to source@skill format
+  const target = skill ? `${source}@${skill}` : source;
 
   let candidates = await discoverCandidates(target, process.cwd());
   if (candidates.length === 0) {

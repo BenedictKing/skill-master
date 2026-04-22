@@ -34,7 +34,7 @@ Usage:
   skill-master remove [skills...] [opts]  Remove skills (aliases: rm, r)
   skill-master list [options]             List installed skills (alias: ls)
   skill-master find [query]               Search for skills (aliases: search, f, s)
-  skill-master inspect <source|skill>     Inspect a candidate skill
+  skill-master inspect <source|skill>     Inspect a candidate skill (alias: preview)
   skill-master recommend <task>           Recommend skills for a task
   skill-master verify <skill-name>        Verify an installed skill
   skill-master compose [sources...]       Compose or generate a skill
@@ -74,7 +74,9 @@ Sync Options:
 
 Examples:
   skill-master add owner/repo
+  skill-master add owner/repo skill-name
   skill-master inspect owner/repo
+  skill-master preview owner/repo skill-name
   skill-master recommend "code review skill for PRs"
   skill-master recommend "monitor deploy status" --install
   skill-master verify tavily-web
@@ -134,6 +136,7 @@ async function main() {
         break;
 
       case 'inspect':
+      case 'preview':
         await inspect(commandArgs);
         break;
 

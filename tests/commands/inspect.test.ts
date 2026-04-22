@@ -36,4 +36,12 @@ describe('inspect command', () => {
     expect(Array.isArray(parsed.results)).toBe(true);
     expect(parsed.results.some((item: { candidate: { name: string } }) => item.candidate.name === 'my-skill')).toBe(true);
   }, 15000);
+
+  it('supports preview alias', () => {
+    const result = runCli(['preview', testDir]);
+    const output = result.stdout + result.stderr;
+    expect(result.exitCode).toBe(0);
+    expect(output).toContain('Inspecting');
+    expect(output).toContain('my-skill');
+  }, 15000);
 });

@@ -4,6 +4,7 @@ import { findAllSkillDirectoriesWithPlugins, readSkillMd, type DiscoveredSkill }
 import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
 import { SkillNotFoundError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
+import { parseSourceAndSkill } from '../utils/parse-positional.js';
 import type { SkillSource, AgentPlatform } from '../types/index.js';
 import { existsSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
@@ -41,6 +42,7 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
   };
 
   let source: string | null = null;
+  const positional: string[] = [];
   let i = 0;
 
   while (i < args.length) {
@@ -125,15 +127,23 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
         break;
 
       default:
-        // First non-flag argument is the source
-        if (!arg.startsWith('-') && source === null) {
-          source = arg;
-        } else if (arg.startsWith('-')) {
+        if (!arg.startsWith('-')) {
+          positional.push(arg);
+          if (source === null) {
+            source = arg;
+          }
+        } else {
           throw new Error(`Unknown option: ${arg}`);
         }
         i++;
         break;
     }
+  }
+
+  // Extract positional skill from gh-style <repo> <skill> syntax
+  const { skill: positionalSkill } = parseSourceAndSkill(positional);
+  if (positionalSkill && !flags.skill.includes(positionalSkill)) {
+    flags.skill.push(positionalSkill);
   }
 
   // --all implies --skill '*' --agent '*' -y
