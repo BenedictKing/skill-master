@@ -10,7 +10,7 @@ describe('discovery', () => {
   beforeEach(() => {
     testDir = join(tmpdir(), `skill-master-discovery-test-${Date.now()}`);
     mkdirSync(join(testDir, 'my-skill'), { recursive: true });
-    writeFileSync(join(testDir, 'my-skill', 'SKILL.md'), `---\nname: my-skill\ndescription: test skill\nallowed-tools:\n  - Read\n---\n# my-skill\n`, 'utf-8');
+    writeFileSync(join(testDir, 'my-skill', 'SKILL.md'), `---\nname: my-skill\ndescription: test skill\nallowed-tools: Read\n---\n# my-skill\n`, 'utf-8');
   });
 
   afterEach(() => {

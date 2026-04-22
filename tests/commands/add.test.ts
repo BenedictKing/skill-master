@@ -1,7 +1,35 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { parseAddFlags } from '../../src/commands/add.js';
+import { runCli } from '../test-utils.js';
 
 describe('add command', () => {
+  let testDir: string;
+
+  beforeEach(() => {
+    testDir = join(tmpdir(), `skill-master-add-test-${Date.now()}`);
+    mkdirSync(join(testDir, 'skill-src'), { recursive: true });
+    mkdirSync(join(testDir, '.claude'), { recursive: true });
+    writeFileSync(
+      join(testDir, 'skill-src', 'SKILL.md'),
+      `---\nname: add-me\ndescription: add target\nallowed-tools: Bash Read Glob Write Edit\n---\n# add-me\n`,
+      'utf-8',
+    );
+  });
+
+  afterEach(() => {
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it('installs a local skill with space-separated allowed-tools', () => {
+    const result = runCli(['add', './skill-src'], testDir);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('Installed');
+  }, 30000);
+
   describe('parseAddFlags', () => {
     it('should parse source argument', () => {
       const result = parseAddFlags(['owner/repo']);

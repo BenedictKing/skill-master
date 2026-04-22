@@ -67,7 +67,7 @@ describe('init command', () => {
     expect(content).toContain('version: 0.1.0');
     expect(content).toContain('author:');
     expect(content).toContain('description:');
-    expect(content).toContain('allowed-tools:');
+    expect(content).toContain('allowed-tools: Read Edit Write Bash Glob Grep');
     expect(content).toContain('user-invocable: true');
 
     // Check body

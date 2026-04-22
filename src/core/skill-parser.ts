@@ -7,6 +7,10 @@ import { SkillParseError } from '../utils/errors.js';
 import { getPluginSkillPaths, getPluginGroupings } from './plugin-manifest.js';
 import type { ParsedSkill, SkillFrontmatter, Capability } from '../types/index.js';
 
+type RawSkillFrontmatter = Omit<SkillFrontmatter, 'allowed-tools'> & {
+  'allowed-tools'?: unknown;
+};
+
 /** Tool-to-capability reverse mapping for Claude Code tools */
 const TOOL_CAPABILITY_MAP: Record<string, Capability> = {
   'Bash': 'shell',
@@ -30,37 +34,73 @@ export function parseSkillMd(content: string, dirName?: string): ParsedSkill {
   const rawFrontmatter = match[1];
   const body = match[2];
 
-  let frontmatter: SkillFrontmatter;
+  let frontmatter: RawSkillFrontmatter;
   try {
-    frontmatter = parseYaml(rawFrontmatter) as SkillFrontmatter;
+    frontmatter = parseYaml(rawFrontmatter) as RawSkillFrontmatter;
   } catch (err) {
     throw new SkillParseError(`YAML parse error: ${(err as Error).message}`);
   }
 
   validateFrontmatter(frontmatter);
+  const normalizedFrontmatter = normalizeFrontmatter(frontmatter);
 
   // Infer name from directory if not provided in frontmatter
-  if (!frontmatter.name && dirName) {
-    frontmatter.name = dirName;
+  if (!normalizedFrontmatter.name && dirName) {
+    normalizedFrontmatter.name = dirName;
   }
 
-  if (!frontmatter.name) {
+  if (!normalizedFrontmatter.name) {
     throw new SkillParseError('Missing "name" field and unable to infer from directory');
   }
 
-  return { frontmatter, body, rawFrontmatter };
+  return { frontmatter: normalizedFrontmatter, body, rawFrontmatter };
+}
+
+function normalizeFrontmatter(fm: RawSkillFrontmatter): SkillFrontmatter {
+  return {
+    ...fm,
+    'allowed-tools': normalizeAllowedTools(fm['allowed-tools']),
+  };
+}
+
+function normalizeAllowedTools(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+
+  const values = typeof value === 'string'
+    ? value.split(/[\s,]+/)
+    : value;
+
+  if (!Array.isArray(values)) {
+    throw new SkillParseError('Invalid "allowed-tools" field — must be a space-separated string or array');
+  }
+
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of values) {
+    if (typeof item !== 'string') {
+      throw new SkillParseError('Invalid "allowed-tools" field — array items must be strings');
+    }
+
+    const tool = item.trim();
+    if (!tool || seen.has(tool)) continue;
+    seen.add(tool);
+    normalized.push(tool);
+  }
+
+  return normalized;
 }
 
 /** Validate required frontmatter fields */
-export function validateFrontmatter(fm: SkillFrontmatter): void {
+export function validateFrontmatter(fm: RawSkillFrontmatter): void {
   if (fm.name !== undefined && typeof fm.name !== 'string') {
     throw new SkillParseError('Invalid "name" field — must be a string');
   }
   if (fm.version !== undefined && typeof fm.version !== 'string') {
     throw new SkillParseError('Invalid "version" field — must be a string');
   }
-  if (fm['allowed-tools'] !== undefined && !Array.isArray(fm['allowed-tools'])) {
-    throw new SkillParseError('Invalid "allowed-tools" field — must be an array');
+  if (fm['allowed-tools'] !== undefined && typeof fm['allowed-tools'] !== 'string' && !Array.isArray(fm['allowed-tools'])) {
+    throw new SkillParseError('Invalid "allowed-tools" field — must be a space-separated string or array');
   }
 }
 
@@ -78,7 +118,15 @@ export function inferCapabilities(allowedTools: string[]): Capability[] {
 
 /** Serialize a ParsedSkill back to SKILL.md format */
 export function serializeSkillMd(parsed: ParsedSkill): string {
-  const yamlStr = stringifyYaml(parsed.frontmatter, { lineWidth: 0 }).trimEnd();
+  const frontmatter: Record<string, unknown> = { ...parsed.frontmatter };
+
+  if (parsed.frontmatter['allowed-tools'] && parsed.frontmatter['allowed-tools'].length > 0) {
+    frontmatter['allowed-tools'] = parsed.frontmatter['allowed-tools'].join(' ');
+  } else {
+    delete frontmatter['allowed-tools'];
+  }
+
+  const yamlStr = stringifyYaml(frontmatter, { lineWidth: 0 }).trimEnd();
   return `---\n${yamlStr}\n---\n${parsed.body}`;
 }
 

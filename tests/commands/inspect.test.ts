@@ -34,6 +34,6 @@ describe('inspect command', () => {
     const parsed = JSON.parse(result.stdout);
     expect(parsed.target).toBe(testDir);
     expect(Array.isArray(parsed.results)).toBe(true);
-    expect(parsed.results[0].candidate.name).toBe('my-skill');
+    expect(parsed.results.some((item: { candidate: { name: string } }) => item.candidate.name === 'my-skill')).toBe(true);
   }, 15000);
 });

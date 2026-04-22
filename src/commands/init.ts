@@ -8,13 +8,7 @@ name: {{NAME}}
 version: 0.1.0
 author: ""
 description: ""
-allowed-tools:
-  - Read
-  - Edit
-  - Write
-  - Bash
-  - Glob
-  - Grep
+allowed-tools: Read Edit Write Bash Glob Grep
 user-invocable: true
 ---
 
