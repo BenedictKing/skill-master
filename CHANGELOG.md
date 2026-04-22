@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- `update` now restores original project install sources from `skills-lock.json`, preserving nested `skillDir` selection and skipping ambiguous sources with manual reinstall hints (`src/commands/update.ts`)
+- `cloneRepo()` now sets `GIT_LFS_SKIP_SMUDGE=1` to avoid pulling unnecessary LFS payloads during install/update (`src/core/git-source.ts`)
+- Added dedicated update tests covering lock-driven source recovery and safe skip behavior (`tests/commands/update.test.ts`)
+
 ## [0.1.11] - 2026-04-21
 
 ### Added

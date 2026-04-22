@@ -176,7 +176,13 @@ export async function cloneRepo(
   logger.debug(`Cloning ${normalizedUrl} to ${tempDir}`);
 
   try {
-    await execFileAsync('git', args, { timeout: 60_000 });
+    await execFileAsync('git', args, {
+      timeout: 60_000,
+      env: {
+        ...process.env,
+        GIT_LFS_SKIP_SMUDGE: '1',
+      },
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new GitCloneError(url, msg);
