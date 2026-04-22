@@ -1,4 +1,5 @@
-import { discoverCandidates, discoverFromSource, discoverInstalledSkills } from '../discovery/search.js';
+import { discoverCandidates, discoverFromLocalPath, discoverFromSource, discoverInstalledSkills } from '../discovery/search.js';
+import { parseSource } from '../core/git-source.js';
 import { buildTaskRequirement } from '../evaluate/matcher.js';
 import { evaluateCandidate } from '../evaluate/scorer.js';
 import type { InspectJsonV1 } from '../types/contracts.js';
@@ -8,6 +9,28 @@ import type { SkillCandidate } from '../types/index.js';
 
 function formatList(items: string[]): string {
   return items.length > 0 ? items.join(', ') : '-';
+}
+
+function hasExplicitSourceSkill(source: string, skill?: string): boolean {
+  if (skill) return true;
+
+  try {
+    return Boolean(parseSource(source).skillFilter);
+  } catch {
+    return false;
+  }
+}
+
+async function discoverExactSourceCandidates(source: string, target: string, skill?: string): Promise<SkillCandidate[]> {
+  if (skill) {
+    const parsed = parseSource(source);
+    if (parsed.type === 'local') {
+      const candidates = await discoverFromLocalPath(parsed.path!, false, target, { ...parsed, skillFilter: skill });
+      return candidates.filter((candidate) => candidate.name === skill);
+    }
+  }
+
+  return discoverFromSource(target);
 }
 
 export async function inspect(args: string[]): Promise<void> {
@@ -22,15 +45,21 @@ export async function inspect(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  // If skill specified, normalize to source@skill format
   const target = skill ? `${source}@${skill}` : source;
+  const exactSourceSkill = hasExplicitSourceSkill(source, skill);
 
-  let candidates = await discoverCandidates(target, process.cwd());
-  if (candidates.length === 0) {
-    candidates = await discoverFromSource(target).catch(async () => {
-      const installed = await discoverInstalledSkills();
-      return installed.filter((candidate: SkillCandidate) => candidate.name === target);
-    });
+  let candidates: SkillCandidate[] = [];
+
+  if (exactSourceSkill) {
+    candidates = await discoverExactSourceCandidates(source, target, skill).catch(() => []);
+  } else {
+    candidates = await discoverCandidates(target, process.cwd());
+    if (candidates.length === 0) {
+      candidates = await discoverFromSource(target).catch(async () => {
+        const installed = await discoverInstalledSkills();
+        return installed.filter((candidate: SkillCandidate) => candidate.name === target);
+      });
+    }
   }
 
   if (candidates.length === 0) {
