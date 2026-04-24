@@ -151,7 +151,11 @@ export async function findAllSkillDirectories(dir: string, fullDepth = false): P
 }
 
 /** Discover all directories containing SKILL.md with plugin grouping info */
-export async function findAllSkillDirectoriesWithPlugins(dir: string, fullDepth = false): Promise<DiscoveredSkill[]> {
+export async function findAllSkillDirectoriesWithPlugins(
+  dir: string,
+  fullDepth = false,
+  includeHiddenDirs = false,
+): Promise<DiscoveredSkill[]> {
   // Get plugin groupings for this source
   const pluginGroupings = await getPluginGroupings(dir);
 
@@ -164,7 +168,7 @@ export async function findAllSkillDirectoriesWithPlugins(dir: string, fullDepth 
 
   if (fullDepth) {
     const results = new Set<string>();
-    await walkForSkills(dir, 0, 5, results);
+    await walkForSkills(dir, 0, 5, results, includeHiddenDirs);
     return [...results].map(enhance);
   }
 
@@ -191,6 +195,7 @@ export async function findAllSkillDirectoriesWithPlugins(dir: string, fullDepth 
     join(dir, '.agent', 'skills'),
     join(dir, '.agents', 'skills'),
     join(dir, '.claude', 'skills'),
+    join(dir, '.bob', 'skills'),
     join(dir, '.cline', 'skills'),
     join(dir, '.codex', 'skills'),
     join(dir, '.github', 'skills'),
@@ -217,12 +222,12 @@ export async function findAllSkillDirectoriesWithPlugins(dir: string, fullDepth 
     }
   }
 
-  // Fallback: search up to 2 levels deep for SKILL.md (skip hidden dirs)
+  // Fallback: search up to 2 levels deep for SKILL.md (include hidden dirs)
   if (results.length === 0) {
     try {
       const topEntries = await readdir(dir, { withFileTypes: true });
       for (const entry of topEntries) {
-        if (entry.isDirectory() && !entry.name.startsWith('.') && !SKIP_DIRS.has(entry.name)) {
+        if (entry.isDirectory() && (includeHiddenDirs || !entry.name.startsWith('.')) && !SKIP_DIRS.has(entry.name)) {
           const subDir = join(dir, entry.name);
           if (existsSync(join(subDir, 'SKILL.md')) && !seenPaths.has(subDir)) {
             results.push(enhance(subDir));
@@ -231,7 +236,7 @@ export async function findAllSkillDirectoriesWithPlugins(dir: string, fullDepth 
           try {
             const subEntries = await readdir(subDir, { withFileTypes: true });
             for (const sub of subEntries) {
-              if (sub.isDirectory() && !sub.name.startsWith('.') && !SKIP_DIRS.has(sub.name)) {
+              if (sub.isDirectory() && (includeHiddenDirs || !sub.name.startsWith('.')) && !SKIP_DIRS.has(sub.name)) {
                 const nested = join(subDir, sub.name);
                 if (existsSync(join(nested, 'SKILL.md')) && !seenPaths.has(nested)) {
                   results.push(enhance(nested));
@@ -253,7 +258,13 @@ export async function findAllSkillDirectoriesWithPlugins(dir: string, fullDepth 
 }
 
 /** Recursively walk directories up to maxDepth looking for SKILL.md */
-async function walkForSkills(dir: string, depth: number, maxDepth: number, results: Set<string>): Promise<void> {
+async function walkForSkills(
+  dir: string,
+  depth: number,
+  maxDepth: number,
+  results: Set<string>,
+  includeHiddenDirs = false,
+): Promise<void> {
   if (depth > maxDepth) return;
 
   if (existsSync(join(dir, 'SKILL.md'))) {
@@ -263,8 +274,8 @@ async function walkForSkills(dir: string, depth: number, maxDepth: number, resul
   try {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.isDirectory() && !entry.name.startsWith('.') && !SKIP_DIRS.has(entry.name)) {
-        await walkForSkills(join(dir, entry.name), depth + 1, maxDepth, results);
+      if (entry.isDirectory() && (includeHiddenDirs || !entry.name.startsWith('.')) && !SKIP_DIRS.has(entry.name)) {
+        await walkForSkills(join(dir, entry.name), depth + 1, maxDepth, results, includeHiddenDirs);
       }
     }
   } catch {

@@ -56,10 +56,11 @@ describe('find command', () => {
     expect(tableLines.join('\n')).not.toContain('...');
   }, 60000);
 
-  it('parses provider flag and query words', () => {
-    const parsed = parseFindArgs(['exa', 'search', '--provider', 'gh-skill', '--json']);
+  it('parses agent flag and query words', () => {
+    const parsed = parseFindArgs(['exa', 'search', '--provider', 'gh-skill', '--agent', 'claude-code', '--json']);
     expect(parsed.query).toBe('exa search');
     expect(parsed.flags.provider).toBe('gh-skill');
+    expect(parsed.flags.agent).toBe('claude-code');
     expect(parsed.flags.json).toBe(true);
   });
 

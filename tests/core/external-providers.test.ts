@@ -12,24 +12,60 @@ describe('optional external providers', () => {
     expect(Array.isArray(results)).toBe(true);
   });
 
-  it('gh skill provider parses tab-separated output correctly', () => {
-    const mockOutput = [
-      'sickn33/antigravity-awesome-skills\tantigravity-awesome-skills-claude/exa-search\tSemantic search using Exa API\t34.3k',
-      'mxyhi/ok-skills\texa-search\tUse Exa for web/code research\t283',
-      'appautomaton/openclaw-monorepo\texa-search/exa-search\tUse Exa Search API\t24',
-    ].join('\n');
+  it('gh skill provider parses JSON output correctly', () => {
+    const mockOutput = JSON.stringify([
+      {
+        repo: 'mxyhi/ok-skills',
+        path: 'claude-code/exa-search/SKILL.md',
+        skillName: 'exa-search',
+        description: 'Use Exa for web/code research',
+        stars: 283,
+      },
+      {
+        repo: 'openclaw/skills',
+        path: 'xinhai-ai/exa-search/SKILL.md',
+        skillName: 'exa-search',
+        description: 'Use Exa Search API',
+        stars: 24,
+      },
+    ]);
 
     const results = parseGhSkillOutput(mockOutput);
 
-    expect(results.length).toBe(3);
+    expect(results.length).toBe(2);
 
     const first = results[0];
     expect(first.provider).toBe('gh-skill');
     expect(first.name).toBe('exa-search');
-    expect(first.source).toBe('sickn33/antigravity-awesome-skills');
-    expect(first.description).toContain('Semantic search');
-    expect(first.installs).toBe(34300);
-    expect(first.installHint).toBe('sickn33/antigravity-awesome-skills@exa-search');
+    expect(first.source).toBe('mxyhi/ok-skills');
+    expect(first.description).toContain('web/code research');
+    expect(first.installs).toBe(283);
+    expect(first.installHint).toBe('mxyhi/ok-skills/claude-code/exa-search');
+    expect(first.providerMeta?.republished).toBe(false);
+    expect(first.warnings).toContain('Declared agent hosts: claude-code');
+  });
+
+  it('does not mark real hidden skillsDir layouts as republished', () => {
+    const mockOutput = JSON.stringify([
+      {
+        repo: 'owner/claude-skill',
+        path: '.claude/skills/foo/SKILL.md',
+        skillName: 'foo',
+        description: 'Claude-specific skill',
+        stars: 5,
+      },
+      {
+        repo: 'owner/bob-skill',
+        path: '.bob/skills/bar/SKILL.md',
+        skillName: 'bar',
+        description: 'Bob-specific skill',
+        stars: 7,
+      },
+    ]);
+
+    const results = parseGhSkillOutput(mockOutput);
+    expect(results[0].providerMeta?.republished).toBe(false);
+    expect(results[1].providerMeta?.republished).toBe(false);
   });
 
   it('vercel provider returns official repo skills for matching queries', async () => {

@@ -8,6 +8,24 @@ import type { ParsedSource } from '../types/index.js';
 
 const execFileAsync = promisify(execFile);
 
+function splitTrailingSkillFilter(source: string): { source: string; skillFilter?: string } {
+  const lastAt = source.lastIndexOf('@');
+  const lastSlash = source.lastIndexOf('/');
+  if (lastAt <= lastSlash) {
+    return { source };
+  }
+
+  const skillFilter = source.slice(lastAt + 1);
+  if (!skillFilter || skillFilter.includes('/')) {
+    return { source };
+  }
+
+  return {
+    source: source.slice(0, lastAt),
+    skillFilter,
+  };
+}
+
 /**
  * Parse a source string into a structured ParsedSource.
  * Supports:
@@ -21,58 +39,66 @@ const execFileAsync = promisify(execFile);
  * - Local paths → local
  */
 export function parseSource(source: string): ParsedSource {
-  // git@ or git:// protocols
-  if (source.startsWith('git@') || source.startsWith('git://')) {
-    return { type: 'git', url: source };
+  if (source.startsWith('/') || source.startsWith('./') || source.startsWith('../') || existsSync(source)) {
+    return { type: 'local', path: source };
   }
 
-  // Full HTTP(S) URLs
-  if (source.startsWith('https://') || source.startsWith('http://')) {
+  if (/^[a-zA-Z0-9][a-zA-Z0-9_.-]*\/[a-zA-Z0-9_.-]+(?:@[^/]+)?$/.test(source)) {
+    const { source: shorthandSource, skillFilter } = splitTrailingSkillFilter(source);
+    return {
+      type: 'git',
+      url: `https://github.com/${shorthandSource}.git`,
+      skillFilter,
+    };
+  }
+
+  const { source: normalizedSource, skillFilter: urlSkillFilter } = splitTrailingSkillFilter(source);
+
+  if (normalizedSource.startsWith('git@') || normalizedSource.startsWith('git://')) {
+    return { type: 'git', url: normalizedSource, skillFilter: urlSkillFilter };
+  }
+
+  if (normalizedSource.startsWith('https://') || normalizedSource.startsWith('http://')) {
     // GitHub tree URL: github.com/o/r/tree/<ref>/<subpath>
-    const ghTree = source.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)(?:\/(.+))?/);
+    const ghTree = normalizedSource.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)(?:\/(.+))?/);
     if (ghTree) {
       const url = `https://github.com/${ghTree[1]}/${ghTree[2]}.git`;
-      return { type: 'git', url, ref: ghTree[3], subpath: ghTree[4] };
+      return { type: 'git', url, ref: ghTree[3], subpath: ghTree[4], skillFilter: urlSkillFilter };
     }
 
     // GitHub blob URL: github.com/o/r/blob/<ref>/<path> → parent dir as subpath
-    const ghBlob = source.match(/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)/);
+    const ghBlob = normalizedSource.match(/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)/);
     if (ghBlob) {
       const url = `https://github.com/${ghBlob[1]}/${ghBlob[2]}.git`;
       const filePath = ghBlob[4];
       const subpath = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : undefined;
-      return { type: 'git', url, ref: ghBlob[3], subpath };
+      return { type: 'git', url, ref: ghBlob[3], subpath, skillFilter: urlSkillFilter };
     }
 
     // GitLab tree URL: gitlab.com/o/r/-/tree/<ref>/<subpath>
-    const glTree = source.match(/gitlab\.com\/([^/]+)\/([^/]+)\/-\/tree\/([^/]+)(?:\/(.+))?/);
+    const glTree = normalizedSource.match(/gitlab\.com\/([^/]+)\/([^/]+)\/-\/tree\/([^/]+)(?:\/(.+))?/);
     if (glTree) {
       const url = `https://gitlab.com/${glTree[1]}/${glTree[2]}.git`;
-      return { type: 'git', url, ref: glTree[3], subpath: glTree[4] };
+      return { type: 'git', url, ref: glTree[3], subpath: glTree[4], skillFilter: urlSkillFilter };
     }
 
     // Plain github.com or gitlab.com URL
-    if (source.includes('github.com/') || source.includes('gitlab.com/')) {
-      return { type: 'git', url: source };
+    if (normalizedSource.includes('github.com/') || normalizedSource.includes('gitlab.com/')) {
+      return { type: 'git', url: normalizedSource, skillFilter: urlSkillFilter };
     }
 
     // Other https URLs — treat as git
-    return { type: 'git', url: source };
+    return { type: 'git', url: normalizedSource, skillFilter: urlSkillFilter };
   }
 
   // Contains github.com or gitlab.com without protocol
-  if (source.includes('github.com/') || source.includes('gitlab.com/')) {
-    return parseSource('https://' + source);
-  }
-
-  // Local path — exists on filesystem
-  if (existsSync(source) || source.startsWith('/') || source.startsWith('./') || source.startsWith('../')) {
-    return { type: 'local', path: source };
+  if (normalizedSource.includes('github.com/') || normalizedSource.includes('gitlab.com/')) {
+    return parseSource('https://' + normalizedSource + (urlSkillFilter ? `@${urlSkillFilter}` : ''));
   }
 
   // Shorthand: extract @skill filter first
-  let skillFilter: string | undefined;
-  let shorthand = source;
+  let skillFilter: string | undefined = urlSkillFilter;
+  let shorthand = normalizedSource;
   const atIdx = shorthand.indexOf('@');
   if (atIdx > 0 && !shorthand.includes('/') === false) {
     // Could be owner/repo@skill or owner/repo/path@skill

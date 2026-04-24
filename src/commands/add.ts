@@ -19,6 +19,8 @@ export interface AddFlags {
   fullDepth: boolean;
   copy: boolean;
   force: boolean;
+  allowHiddenDirs: boolean;
+  upstream: boolean;
   help: boolean;
 }
 
@@ -38,6 +40,8 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
     fullDepth: false,
     copy: false,
     force: false,
+    allowHiddenDirs: false,
+    upstream: false,
     help: false,
   };
 
@@ -116,6 +120,16 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
         i++;
         break;
 
+      case '--allow-hidden-dirs':
+        flags.allowHiddenDirs = true;
+        i++;
+        break;
+
+      case '--upstream':
+        flags.upstream = true;
+        i++;
+        break;
+
       case '--copy':
         flags.copy = true;
         i++;
@@ -168,8 +182,58 @@ function printAddHelp(): void {
   console.log('  -l, --list            List available skills without installing');
   console.log('  --all                 Install all skills to all agents');
   console.log('  --full-depth          Search all subdirectories');
+  console.log('  --allow-hidden-dirs   Include skills in hidden directories');
+  console.log('  --upstream            Prefer upstream source for forked repositories');
   console.log('  --copy                Copy instead of symlink');
   console.log('  --force               Force reinstall');
+}
+
+async function resolveUpstreamSource(source: string, enabled: boolean): Promise<string> {
+  if (!enabled) return source;
+
+  const parsed = parseSource(source);
+  if (parsed.type !== 'git' || !parsed.url || !parsed.url.includes('github.com')) {
+    return source;
+  }
+
+  const match = parsed.url.match(/github\.com[/:]([^/]+)\/([^/]+)/);
+  if (!match) return source;
+
+  const repo = `${match[1]}/${match[2].replace(/\.git$/, '')}`;
+  try {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execFileAsync = promisify(execFile);
+    const { stdout } = await execFileAsync('gh', ['repo', 'view', repo, '--json', 'isFork,parent'], {
+      timeout: 15_000,
+      env: {
+        ...process.env,
+        GH_PAGER: 'cat',
+        PAGER: 'cat',
+        NO_COLOR: '1',
+      },
+    });
+    const info = JSON.parse(stdout) as { isFork?: boolean; parent?: { nameWithOwner?: string } | null };
+    if (!info.isFork || !info.parent?.nameWithOwner) return source;
+
+    const upstream = info.parent.nameWithOwner;
+    let rewritten = upstream;
+    if (parsed.ref && parsed.subpath) {
+      rewritten = `https://github.com/${upstream}/tree/${parsed.ref}/${parsed.subpath}`;
+    } else if (parsed.ref) {
+      rewritten = `https://github.com/${upstream}/tree/${parsed.ref}`;
+    } else if (parsed.subpath) {
+      rewritten = `${upstream}/${parsed.subpath}`;
+    }
+
+    if (parsed.skillFilter) {
+      rewritten += `@${parsed.skillFilter}`;
+    }
+
+    return rewritten;
+  } catch {
+    return source;
+  }
 }
 
 /** add command — install skills (compatible with `npx skills add`) */
@@ -192,9 +256,10 @@ export async function add(args: string[]): Promise<void> {
   }
 
   const cwd = process.cwd();
+  const effectiveSource = await resolveUpstreamSource(source, flags.upstream);
 
   // Parse source string into structured form
-  const parsed = parseSource(source);
+  const parsed = parseSource(effectiveSource);
 
   // Merge skillFilter from source (e.g. owner/repo@skill) into flags.skill
   if (parsed.skillFilter && !flags.skill.includes(parsed.skillFilter)) {
@@ -222,7 +287,8 @@ export async function add(args: string[]): Promise<void> {
   }
 
   // Discover all skill directories in the source (with plugin info)
-  const allSkillDirs = await findAllSkillDirectoriesWithPlugins(sourceDir, flags.fullDepth);
+  const discoveredSkillDirs = await findAllSkillDirectoriesWithPlugins(sourceDir, flags.fullDepth, flags.allowHiddenDirs);
+  const allSkillDirs = discoveredSkillDirs;
   if (allSkillDirs.length === 0) {
     throw new SkillNotFoundError(`No SKILL.md found in ${sourceDir}`);
   }
@@ -304,7 +370,7 @@ export async function add(args: string[]): Promise<void> {
           // Record relative skill dir path for multi-skill source repos
           const skillDir = relative(sourceDir, dir);
           await addSkillToLocalLock(result.skillName, {
-            source: source!,
+            source: effectiveSource,
             sourceType: parsed.type === 'git' ? 'github' : 'local',
             computedHash: await computeSkillFolderHash(result.canonicalPath),
             ...(skillDir && skillDir !== '.' ? { skillDir } : {}),

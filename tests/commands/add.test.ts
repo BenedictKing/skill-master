@@ -23,11 +23,21 @@ describe('add command', () => {
     rmSync(testDir, { recursive: true, force: true });
   });
 
-  it('installs a local skill with space-separated allowed-tools', () => {
-    const result = runCli(['add', './skill-src'], testDir);
+  it('finds hidden nested skills in full-depth mode only when --allow-hidden-dirs is set', () => {
+    mkdirSync(join(testDir, '.deep-hidden', 'group', '.private', 'full-depth-skill'), { recursive: true });
+    writeFileSync(
+      join(testDir, '.deep-hidden', 'group', '.private', 'full-depth-skill', 'SKILL.md'),
+      `---\nname: full-depth-hidden-skill\ndescription: hidden full-depth target\nallowed-tools:\n  - Read\n---\n# full-depth-hidden-skill\n`,
+      'utf-8',
+    );
 
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('Installed');
+    const withoutHidden = runCli(['add', './.deep-hidden', '--list', '--full-depth'], testDir);
+    expect(withoutHidden.exitCode).toBe(1);
+    expect(withoutHidden.stdout + withoutHidden.stderr).toContain('No SKILL.md found');
+
+    const withHidden = runCli(['add', './.deep-hidden', '--list', '--full-depth', '--allow-hidden-dirs'], testDir);
+    expect(withHidden.exitCode).toBe(0);
+    expect(withHidden.stdout).toContain('full-depth-hidden-skill');
   }, 30000);
 
   describe('parseAddFlags', () => {
@@ -103,9 +113,14 @@ describe('add command', () => {
       expect(result.flags.fullDepth).toBe(true);
     });
 
-    it('should parse --copy flag', () => {
-      const result = parseAddFlags(['source', '--copy']);
-      expect(result.flags.copy).toBe(true);
+    it('should parse --allow-hidden-dirs flag', () => {
+      const result = parseAddFlags(['source', '--allow-hidden-dirs']);
+      expect(result.flags.allowHiddenDirs).toBe(true);
+    });
+
+    it('should parse --upstream flag', () => {
+      const result = parseAddFlags(['source', '--upstream']);
+      expect(result.flags.upstream).toBe(true);
     });
 
     it('should parse --force flag', () => {

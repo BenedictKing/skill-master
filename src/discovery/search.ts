@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { parseSource } from '../core/git-source.js';
-import type { SkillCandidate } from '../types/index.js';
+import type { AgentPlatform, SkillCandidate } from '../types/index.js';
 import { searchSkillsSh } from './providers/skills-sh.js';
 import { discoverFromSource, discoverFromLocalPath } from './providers/github.js';
 import { discoverFromPluginManifest } from './providers/local.js';
@@ -17,7 +17,7 @@ export { discoverInstalledSkills } from './providers/registry.js';
 export { searchGhSkill } from './providers/gh-skill.js';
 export { searchVercelSkills } from './providers/vercel.js';
 
-export async function discoverCandidates(query: string, cwd: string): Promise<SkillCandidate[]> {
+export async function discoverCandidates(query: string, cwd: string, preferredAgent?: AgentPlatform): Promise<SkillCandidate[]> {
   const results: SkillCandidate[] = [];
 
   if (query.trim()) {
@@ -28,7 +28,7 @@ export async function discoverCandidates(query: string, cwd: string): Promise<Sk
     }
 
     try {
-      results.push(...await searchGhSkill(query));
+      results.push(...await searchGhSkill(query, preferredAgent));
     } catch {
       // ignore optional provider failures
     }

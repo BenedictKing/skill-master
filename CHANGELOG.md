@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Added support for additional gh-compatible agent hosts including IBM Bob, Deep Agents, Firebender, and Warp (`src/platform/agents.ts`)
+- Added fallback discovery coverage for hidden directories and a regression test for hidden nested skills (`src/core/skill-parser.ts`, `tests/core/skill-discovery.test.ts`)
+
+### Changed
+- Updated `gh skill` discovery to use `gh skill search --json`, enrich candidates with fork/upstream metadata, and infer supported agent hosts from skill paths (`src/discovery/providers/gh-skill.ts`)
+- Extended `find`, `recommend`, and `solve` to filter gh skill candidates by target agent (`src/commands/find.ts`, `src/commands/recommend.ts`, `src/commands/solve.ts`, `src/discovery/search.ts`, `src/recommend/ranking.ts`)
+- Added `add` command support for `--allow-hidden-dirs` and `--upstream`, including upstream source redirection for forked GitHub repositories (`src/commands/add.ts`)
+- Expanded candidate/provider metadata typing and updated tests for the new gh JSON search flow and CLI flags (`src/types/index.ts`, `src/discovery/normalize.ts`, `tests/commands/add.test.ts`, `tests/commands/find.test.ts`, `tests/core/external-providers.test.ts`)
+
 ## [0.1.12] - 2026-04-22
 
 ### Changed

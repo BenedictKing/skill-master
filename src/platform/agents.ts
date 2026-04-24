@@ -50,6 +50,13 @@ export const AGENTS = {
     skillsDir: 'skills',
     globalSkillsDir: join(home, '.openclaw/skills'),
   },
+  bob: {
+    name: 'bob',
+    displayName: 'IBM Bob',
+    skillsDir: '.bob/skills',
+    globalSkillsDir: join(home, '.bob/skills'),
+    detectMarker: '.bob',
+  },
   cline: {
     name: 'cline',
     displayName: 'Cline',
@@ -103,12 +110,26 @@ export const AGENTS = {
     globalSkillsDir: join(home, '.cursor/skills'),
     detectMarker: '.cursor',
   },
+  deepagents: {
+    name: 'deepagents',
+    displayName: 'Deep Agents',
+    skillsDir: '.agents/skills',
+    globalSkillsDir: join(home, '.deepagents/agent/skills'),
+    detectMarker: '.deepagents',
+  },
   droid: {
     name: 'droid',
     displayName: 'Droid',
     skillsDir: '.factory/skills',
     globalSkillsDir: join(home, '.factory/skills'),
     detectMarker: '.factory',
+  },
+  firebender: {
+    name: 'firebender',
+    displayName: 'Firebender',
+    skillsDir: '.agents/skills',
+    globalSkillsDir: join(home, '.firebender/skills'),
+    detectMarker: '.firebender',
   },
   'gemini-cli': {
     name: 'gemini-cli',
@@ -252,6 +273,13 @@ export const AGENTS = {
     skillsDir: '.trae/skills',
     globalSkillsDir: join(home, '.trae-cn/skills'),
   },
+  warp: {
+    name: 'warp',
+    displayName: 'Warp',
+    skillsDir: '.agents/skills',
+    globalSkillsDir: join(home, '.agents/skills'),
+    detectMarker: '.warp',
+  },
   windsurf: {
     name: 'windsurf',
     displayName: 'Windsurf',
@@ -298,17 +326,14 @@ export const AGENTS = {
 
 export type AgentPlatform = keyof typeof AGENTS;
 
-/** Get config for a specific agent */
 export function getAgentConfig(type: AgentPlatform): AgentConfig {
   return AGENTS[type];
 }
 
-/** List all supported platform keys */
 export function getSupportedPlatforms(): AgentPlatform[] {
   return Object.keys(AGENTS) as AgentPlatform[];
 }
 
-/** Detect current platform by checking cwd for directory markers */
 export function detectPlatform(cwd: string): AgentPlatform {
   for (const [key, config] of Object.entries(AGENTS) as Array<[AgentPlatform, AgentConfig]>) {
     if (config.detectMarker && existsSync(join(cwd, config.detectMarker))) {
@@ -316,7 +341,6 @@ export function detectPlatform(cwd: string): AgentPlatform {
     }
   }
 
-  // Fallback: check opencode via global config
   if (existsSync(join(configHome, 'opencode'))) {
     return 'opencode';
   }
@@ -324,41 +348,34 @@ export function detectPlatform(cwd: string): AgentPlatform {
   return 'claude-code';
 }
 
-/** Get the project-level skills directory name for an agent */
 export function getAgentSkillsDir(platform: AgentPlatform): string {
   return AGENTS[platform].skillsDir;
 }
 
-/** Get full skill installation path: cwd + skillsDir + skillName */
 export function getAgentSkillPath(cwd: string, agent: AgentPlatform, name: string): string {
   return join(cwd, AGENTS[agent].skillsDir, name);
 }
 
-/** Get the global skill path: globalSkillsDir + skillName */
 export function getAgentGlobalSkillPath(agent: AgentPlatform, name: string): string {
   return join(AGENTS[agent].globalSkillsDir, name);
 }
 
-/** Get the agent skills root directory: cwd + skillsDir */
 export function getAgentSkillsRoot(cwd: string, agent: AgentPlatform): string {
   return join(cwd, AGENTS[agent].skillsDir);
 }
 
-/** Get all agents that use the universal `.agents/skills` directory and are visible in universal list */
 export function getUniversalAgents(): AgentPlatform[] {
   return (Object.entries(AGENTS) as Array<[AgentPlatform, AgentConfig]>)
     .filter(([, config]) => config.skillsDir === '.agents/skills' && config.showInUniversalList !== false)
     .map(([key]) => key);
 }
 
-/** Get all agents that do NOT use the universal `.agents/skills` directory */
 export function getNonUniversalAgents(): AgentPlatform[] {
   return (Object.entries(AGENTS) as Array<[AgentPlatform, AgentConfig]>)
     .filter(([, config]) => config.skillsDir !== '.agents/skills')
     .map(([key]) => key);
 }
 
-/** Check if an agent uses the universal `.agents/skills` directory */
 export function isUniversalAgent(type: AgentPlatform): boolean {
   return AGENTS[type].skillsDir === '.agents/skills';
 }

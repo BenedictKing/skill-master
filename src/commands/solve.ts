@@ -111,8 +111,8 @@ export async function solve(args: string[]): Promise<void> {
     preferInstalled: flags.preferInstalled,
   };
 
-  const candidates = await discoverCandidates(task, process.cwd());
-  const recommendationRun = await runRecommendation(task, process.cwd(), preferences);
+  const candidates = await discoverCandidates(task, process.cwd(), flags.agent);
+  const recommendationRun = await runRecommendation(task, process.cwd(), preferences, flags.agent);
   const best = recommendationRun.recommendations[0];
 
   const payload: SolveJsonV1 = {

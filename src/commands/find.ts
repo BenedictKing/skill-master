@@ -1,11 +1,12 @@
 import { discoverCandidates } from '../discovery/search.js';
 import type { FindJsonV1 } from '../types/contracts.js';
-import type { CandidateProvider, SkillCandidate } from '../types/index.js';
+import type { AgentPlatform, CandidateProvider, SkillCandidate } from '../types/index.js';
 import * as logger from '../utils/logger.js';
 
 interface FindFlags {
   json: boolean;
   provider?: CandidateProvider;
+  agent?: AgentPlatform;
 }
 
 const MIN_NAME_WIDTH = 50;
@@ -35,6 +36,17 @@ export function parseFindArgs(args: string[]): { query: string; flags: FindFlags
 
     if (arg === '--provider' && args[i + 1]) {
       flags.provider = args[i + 1] as CandidateProvider;
+      i++;
+      continue;
+    }
+
+    if (arg.startsWith('--agent=')) {
+      flags.agent = arg.slice('--agent='.length) as AgentPlatform;
+      continue;
+    }
+
+    if ((arg === '-a' || arg === '--agent') && args[i + 1]) {
+      flags.agent = args[i + 1] as AgentPlatform;
       i++;
       continue;
     }
@@ -118,7 +130,7 @@ export async function find(args: string[]): Promise<void> {
   const { query, flags } = parseFindArgs(args);
 
   if (!query) {
-    console.log('Usage: skill-master find <query> [--provider <provider>] [--json]');
+    console.log('Usage: skill-master find <query> [--provider <provider>] [-a <agent>] [--json]');
     console.log('');
     console.log('Search and discover skills from multiple sources.');
     console.log('');
@@ -131,11 +143,12 @@ export async function find(args: string[]): Promise<void> {
 
   if (!flags.json) {
     const providerSuffix = flags.provider ? ` (provider: ${flags.provider})` : '';
-    logger.info(`Searching for "${query}"${providerSuffix}...`);
+    const agentSuffix = flags.agent ? ` (agent: ${flags.agent})` : '';
+    logger.info(`Searching for "${query}"${providerSuffix}${agentSuffix}...`);
   }
 
   try {
-    const candidates = await discoverCandidates(query, process.cwd());
+    const candidates = await discoverCandidates(query, process.cwd(), flags.agent);
     const filteredCandidates = flags.provider
       ? candidates.filter((candidate) => candidate.provider === flags.provider)
       : candidates;

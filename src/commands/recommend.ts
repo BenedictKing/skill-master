@@ -82,7 +82,7 @@ export async function recommend(args: string[]): Promise<void> {
     noRemote: flags.noRemote,
     preferInstalled: flags.preferInstalled,
   };
-  const run = await runRecommendation(task, process.cwd(), preferences);
+  const run = await runRecommendation(task, process.cwd(), preferences, flags.agent);
   if (run.recommendations.length === 0) {
     logger.warn('No recommendations found.');
     return;
