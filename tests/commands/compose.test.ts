@@ -48,4 +48,22 @@ describe('compose command', () => {
     expect(parsed.result.outputDir).toBe(outputDir);
     expect(parsed.result.files).toContain(join(outputDir, 'SKILL.md'));
   }, 30000);
+
+  it('generates an OpenAI image API skill from the task', () => {
+    const outputDir = join(testDir, 'generated-image-api');
+    const result = runCli([
+      'compose',
+      '--task',
+      'Generate images with gpt-image-2 through a third-party OpenAI-compatible API at http://localhost:3688/v1',
+      '-o',
+      outputDir,
+      '--json',
+    ], testDir);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.result.files).toContain(join(outputDir, '.env.example'));
+    expect(parsed.result.files).toContain(join(outputDir, 'scripts', 'gpt-image-2-api.mjs'));
+    expect(existsSync(join(outputDir, '.env.example'))).toBe(true);
+  }, 30000);
 });

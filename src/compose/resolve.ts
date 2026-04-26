@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { getRegistryEntry } from '../core/registry.js';
 import { parseSource } from '../core/git-source.js';
+import { discoverFromSource } from '../discovery/providers/github.js';
 
 export async function resolveComposeSource(input: string): Promise<string> {
   if (existsSync(input)) {
@@ -13,8 +14,14 @@ export async function resolveComposeSource(input: string): Promise<string> {
   }
 
   const parsed = parseSource(input);
-  if (parsed.type === 'local' && parsed.path) {
-    return parsed.path;
+  if (parsed.type === 'local') {
+    return parsed.path ?? input;
+  }
+
+  const candidates = await discoverFromSource(input).catch(() => []);
+  const candidate = candidates.find((item) => item.path);
+  if (candidate?.path) {
+    return candidate.path;
   }
 
   return input;

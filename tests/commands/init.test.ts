@@ -64,14 +64,15 @@ describe('init command', () => {
     // Check frontmatter
     expect(content).toContain('---');
     expect(content).toContain('name: test-skill');
-    expect(content).toContain('version: 0.1.0');
-    expect(content).toContain('author:');
     expect(content).toContain('description:');
-    expect(content).toContain('allowed-tools: Read Edit Write Bash Glob Grep');
-    expect(content).toContain('user-invocable: true');
+    expect(content).toContain('allowed-tools: Read Write');
+    expect(content).not.toContain('author:');
+    expect(content).not.toContain('version:');
+    expect(content).not.toContain('user-invocable:');
 
     // Check body
     expect(content).toContain('# test-skill');
+    expect(content).toContain('## Workflow');
   }, 10000);
 
   it('should use directory basename when no name provided', () => {

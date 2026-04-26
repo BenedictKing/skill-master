@@ -5,16 +5,21 @@ import * as logger from '../utils/logger.js';
 
 const SKILL_MD_TEMPLATE = `---
 name: {{NAME}}
-version: 0.1.0
-author: ""
-description: ""
-allowed-tools: Read Edit Write Bash Glob Grep
-user-invocable: true
+description: Describe what this skill does and when to use it.
+allowed-tools: Read Write
 ---
 
 # {{NAME}}
 
-<!-- Describe what this skill does -->
+## Purpose
+
+Describe the workflow this skill enables.
+
+## Workflow
+
+1. Inspect the user's request and inputs.
+2. Use the minimum required tools.
+3. Report results and file paths clearly.
 `;
 
 /** init command — create a new skill template */

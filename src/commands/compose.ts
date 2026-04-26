@@ -4,17 +4,32 @@ import type { ComposeJsonV1 } from '../types/contracts.js';
 import { mergeStrategyDescription } from '../compose/merge.js';
 import { resolveComposeSource } from '../compose/resolve.js';
 import * as logger from '../utils/logger.js';
+import type { CompositionEnvVar } from '../types/index.js';
 
 interface ComposeFlags {
   outputDir: string;
   task?: string;
   json: boolean;
+  env: CompositionEnvVar[];
+}
+
+function parseEnvSpec(spec: string): CompositionEnvVar {
+  const eqIndex = spec.indexOf('=');
+  const key = (eqIndex === -1 ? spec : spec.slice(0, eqIndex)).trim();
+  if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
+    throw new Error(`Invalid env key: ${key}`);
+  }
+
+  return eqIndex === -1
+    ? { key }
+    : { key, value: spec.slice(eqIndex + 1) };
 }
 
 function parseComposeArgs(args: string[]): { sources: string[]; flags: ComposeFlags } {
   const flags: ComposeFlags = {
     outputDir: join(process.cwd(), 'generated-skill'),
     json: false,
+    env: [],
   };
   const sources: string[] = [];
 
@@ -28,6 +43,15 @@ function parseComposeArgs(args: string[]): { sources: string[]; flags: ComposeFl
     if (arg === '--task' && args[i + 1]) {
       flags.task = args[i + 1];
       i++;
+      continue;
+    }
+    if (arg === '--env' && args[i + 1]) {
+      flags.env.push(parseEnvSpec(args[i + 1]));
+      i++;
+      continue;
+    }
+    if (arg.startsWith('--env=')) {
+      flags.env.push(parseEnvSpec(arg.slice('--env='.length)));
       continue;
     }
     if (arg === '--json') {
@@ -45,7 +69,7 @@ function parseComposeArgs(args: string[]): { sources: string[]; flags: ComposeFl
 export async function compose(args: string[]): Promise<void> {
   const { sources, flags } = parseComposeArgs(args);
   if (sources.length === 0 && !flags.task) {
-    console.log('Usage: skill-master compose <source...> [-o <dir>] [--task <task>] [--json]');
+    console.log('Usage: skill-master compose <source...> [-o <dir>] [--task <task>] [--env KEY[=VALUE]] [--json]');
     console.log('');
     console.log('Compose or generate a new skill output directory.');
     process.exit(0);
@@ -61,6 +85,8 @@ export async function compose(args: string[]): Promise<void> {
     task: flags.task,
     outputDir: flags.outputDir,
     sources: resolvedSources,
+    sourceLabels: sources,
+    env: flags.env,
   });
 
   if (flags.json) {

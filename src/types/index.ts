@@ -162,6 +162,8 @@ export interface CompositionRequest {
   outputDir: string;
   skillNames?: string[];
   sources?: string[];
+  sourceLabels?: string[];
+  env?: CompositionEnvVar[];
 }
 
 export interface CompositionResult {
@@ -169,6 +171,11 @@ export interface CompositionResult {
   files: string[];
   summary: string[];
   sources: string[];
+}
+
+export interface CompositionEnvVar {
+  key: string;
+  value?: string;
 }
 
 /** Options for the install command */
