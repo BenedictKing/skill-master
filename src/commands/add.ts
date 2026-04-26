@@ -345,6 +345,8 @@ export async function add(args: string[]): Promise<void> {
 
   // If multiple agents specified, install for each
   const agents = flags.agent.length > 0 ? flags.agent : [undefined];
+  const totalInstallations = targetDirs.length * agents.length;
+  let completedInstallations = 0;
 
   try {
     for (const { path: dir, pluginName } of targetDirs) {
@@ -376,6 +378,11 @@ export async function add(args: string[]): Promise<void> {
             ...(skillDir && skillDir !== '.' ? { skillDir } : {}),
             ...(pluginName ? { pluginName } : {}),
           }, cwd);
+        }
+
+        completedInstallations++;
+        if (completedInstallations < totalInstallations) {
+          logger.blank();
         }
       }
     }

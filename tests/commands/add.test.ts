@@ -40,6 +40,37 @@ describe('add command', () => {
     expect(withHidden.stdout).toContain('full-depth-hidden-skill');
   }, 30000);
 
+  it('separates multi-skill install blocks after the success message', () => {
+    const testHome = join(testDir, 'home');
+    mkdirSync(join(testDir, 'multi-src', 'alpha-skill'), { recursive: true });
+    mkdirSync(join(testDir, 'multi-src', 'beta-skill'), { recursive: true });
+    mkdirSync(testHome, { recursive: true });
+
+    writeFileSync(
+      join(testDir, 'multi-src', 'alpha-skill', 'SKILL.md'),
+      `---\nname: alpha-skill\ndescription: alpha target\nallowed-tools:\n  - Read\n---\n# alpha-skill\n`,
+      'utf-8',
+    );
+    writeFileSync(
+      join(testDir, 'multi-src', 'beta-skill', 'SKILL.md'),
+      `---\nname: beta-skill\ndescription: beta target\nallowed-tools:\n  - Read\n---\n# beta-skill\n`,
+      'utf-8',
+    );
+
+    const result = runCli(['add', './multi-src'], testDir, { HOME: testHome });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain(
+      'skill-master [9/9] Updating registry...\n' +
+      'skill-master ✔ Skill "alpha-skill" installed successfully!\n\n' +
+      'skill-master [1/9] Fetching skill source...',
+    );
+    expect(result.stdout).not.toContain(
+      'skill-master [9/9] Updating registry...\n\n' +
+      'skill-master ✔ Skill "alpha-skill" installed successfully!',
+    );
+  }, 30000);
+
   describe('parseAddFlags', () => {
     it('should parse source argument', () => {
       const result = parseAddFlags(['owner/repo']);

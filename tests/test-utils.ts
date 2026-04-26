@@ -1,9 +1,10 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Ajv from 'ajv';
 
 const CLI_PATH = join(import.meta.dirname, '..', 'src', 'cli.ts');
+const TSX_PATH = join(import.meta.dirname, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
 /** Strip ANSI escape codes from a string */
 export function stripAnsi(str: string): string {
@@ -21,14 +22,15 @@ export function runCli(
   timeout?: number,
 ): { stdout: string; stderr: string; exitCode: number } {
   try {
-    const output = execSync(
-      `npx tsx "${CLI_PATH}" ${args.map((a) => `"${a}"`).join(' ')}`,
+    const output = execFileSync(
+      process.execPath,
+      [TSX_PATH, CLI_PATH, ...args],
       {
         encoding: 'utf-8',
         cwd,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: env ? { ...process.env, ...env } : undefined,
-        timeout: timeout ?? 60000, // Increased to 60s for npx tsx initialization
+        timeout: timeout ?? 60000,
       },
     );
     return { stdout: stripAnsi(output), stderr: '', exitCode: 0 };

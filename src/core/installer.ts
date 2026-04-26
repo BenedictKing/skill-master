@@ -169,7 +169,6 @@ export async function installSkill(options: InstallOptions): Promise<InstallResu
   };
 
   await updateRegistry(skillName, entry);
-  logger.blank();
   logger.success(`Skill "${skillName}" installed successfully!`);
 
   return {
