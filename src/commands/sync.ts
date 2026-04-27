@@ -1,4 +1,4 @@
-import { installSkill, sanitizeName } from '../core/installer.js';
+import { installSkill, installSkillToAgents, sanitizeName } from '../core/installer.js';
 import { discoverNodeModulesSkills, readSkillMd } from '../core/skill-parser.js';
 import { readLocalLock, addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
 import { confirmProjectRoot, formatProjectRelativeSource, resolveProjectRoot } from '../core/project-root.js';
@@ -188,26 +188,35 @@ export async function sync(args: string[]): Promise<void> {
   const agents = flags.agent.length > 0 ? resolveSyncAgents(flags) : [undefined];
 
   for (const s of actionable) {
-    for (const agent of agents) {
-      try {
-        const result = await installSkill({
+    try {
+      const concreteAgents = agents.filter((agent): agent is AgentPlatform => agent !== undefined);
+      const results = concreteAgents.length === agents.length
+        ? await installSkillToAgents({
           source: { type: 'local', path: s.dir },
-          agent: agent as AgentPlatform | undefined,
+          agents: concreteAgents,
           cwd,
           global: false,
           copy: false,
           force: flags.force,
           yes: true,
-        });
+        })
+        : [await installSkill({
+          source: { type: 'local', path: s.dir },
+          agent: agents[0] as AgentPlatform | undefined,
+          cwd,
+          global: false,
+          copy: false,
+          force: flags.force,
+          yes: true,
+        })];
 
-        await addSkillToLocalLock(result.skillName, {
-          source: formatProjectRelativeSource(cwd, s.dir),
-          sourceType: 'node_modules',
-          computedHash: await computeSkillFolderHash(result.canonicalPath),
-        }, cwd);
-      } catch (err) {
-        logger.error(`Failed to install ${s.name}: ${(err as Error).message}`);
-      }
+      await addSkillToLocalLock(results[0].skillName, {
+        source: formatProjectRelativeSource(cwd, s.dir),
+        sourceType: 'node_modules',
+        computedHash: await computeSkillFolderHash(results[0].canonicalPath),
+      }, cwd);
+    } catch (err) {
+      logger.error(`Failed to install ${s.name}: ${(err as Error).message}`);
     }
   }
 

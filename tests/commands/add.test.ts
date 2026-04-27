@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { parseAddFlags } from '../../src/commands/add.js';
@@ -61,12 +61,12 @@ describe('add command', () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain(
-      'skill-master [9/9] Updating registry...\n' +
+      'skill-master [9/9] Updating claude-code registry...\n' +
       'skill-master ✔ Skill "alpha-skill" installed successfully!\n\n' +
       'skill-master [1/9] Fetching skill source...',
     );
     expect(result.stdout).not.toContain(
-      'skill-master [9/9] Updating registry...\n\n' +
+      'skill-master [9/9] Updating claude-code registry...\n\n' +
       'skill-master ✔ Skill "alpha-skill" installed successfully!',
     );
   }, 30000);
@@ -193,6 +193,13 @@ describe('add command', () => {
     expect(existsSync(join(configHome, 'opencode', 'skills', 'add-me'))).toBe(true);
     expect(existsSync(join(env.CODEX_HOME, 'skills', 'add-me'))).toBe(true);
     expect(existsSync(join(env.CLAUDE_CONFIG_DIR, 'skills', 'add-me'))).toBe(true);
+    expect((result.stdout.match(/\[1\/9\] Fetching skill source\.\.\./g) ?? []).length).toBe(1);
+    expect((result.stdout.match(/Installed to /g) ?? []).length).toBe(1);
+    expect((result.stdout.match(/\[8\/9\] Linking to /g) ?? []).length).toBe(3);
+    expect((result.stdout.match(/\[9\/9\] Updating .+ registry\.\.\./g) ?? []).length).toBe(3);
+    expect(result.stdout).toContain('[9/9] Updating claude-code registry...');
+    expect(result.stdout).toContain('[9/9] Updating codex registry...');
+    expect(result.stdout).toContain('[9/9] Updating opencode registry...');
 
     const registry = JSON.parse(readFileSync(join(testHome, '.agents', 'registry.json'), 'utf-8'));
     expect(registry.skills['add-me'].agents.map((agent: { agent: string }) => agent.agent).sort()).toEqual([
@@ -200,6 +207,125 @@ describe('add command', () => {
       'codex',
       'opencode',
     ]);
+  }, 30000);
+
+  it('preserves lower-priority non-empty env values during global reinstall', () => {
+    const testHome = join(testDir, 'home');
+    const configHome = join(testHome, '.config');
+    const env = {
+      HOME: testHome,
+      XDG_CONFIG_HOME: configHome,
+      CODEX_HOME: join(testHome, '.codex'),
+      CLAUDE_CONFIG_DIR: join(testHome, '.claude'),
+    };
+
+    mkdirSync(join(configHome, 'opencode'), { recursive: true });
+    mkdirSync(env.CODEX_HOME, { recursive: true });
+    mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true });
+    mkdirSync(join(testHome, '.agents', 'config', 'add-me'), { recursive: true });
+    mkdirSync(join(testHome, '.agents', 'skills', 'add-me'), { recursive: true });
+
+    writeFileSync(
+      join(testDir, 'skill-src', '.env.example'),
+      [
+        'OPENAI_API_KEY=',
+        'OPENAI_IMAGE_QUALITY=',
+        'OPENAI_IMAGE_N=',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    writeFileSync(
+      join(testHome, '.agents', 'config', 'add-me', '.env'),
+      [
+        'OPENAI_API_KEY=key',
+        'OPENAI_IMAGE_QUALITY=',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    writeFileSync(
+      join(testHome, '.agents', 'skills', 'add-me', '.env'),
+      [
+        'OPENAI_API_KEY=key',
+        'OPENAI_IMAGE_QUALITY=high',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const result = runCli(['add', './skill-src', '--global'], testDir, env);
+
+    expect(result.exitCode).toBe(0);
+
+    const canonicalEnv = readFileSync(join(testHome, '.agents', 'skills', 'add-me', '.env'), 'utf-8');
+    const persistentEnv = readFileSync(join(testHome, '.agents', 'config', 'add-me', '.env'), 'utf-8');
+
+    expect(canonicalEnv).toContain('OPENAI_IMAGE_QUALITY=high');
+    expect(persistentEnv).toContain('OPENAI_IMAGE_QUALITY=high');
+    expect(canonicalEnv).toContain('OPENAI_IMAGE_N=');
+  }, 30000);
+
+  it('prefers the most recently edited non-empty env value when sources conflict', () => {
+    const testHome = join(testDir, 'home');
+    const configHome = join(testHome, '.config');
+    const env = {
+      HOME: testHome,
+      XDG_CONFIG_HOME: configHome,
+      CODEX_HOME: join(testHome, '.codex'),
+      CLAUDE_CONFIG_DIR: join(testHome, '.claude'),
+    };
+
+    mkdirSync(join(configHome, 'opencode'), { recursive: true });
+    mkdirSync(env.CODEX_HOME, { recursive: true });
+    mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true });
+    mkdirSync(join(testHome, '.agents', 'config', 'add-me'), { recursive: true });
+    mkdirSync(join(testHome, '.agents', 'skills', 'add-me'), { recursive: true });
+
+    writeFileSync(
+      join(testDir, 'skill-src', '.env.example'),
+      [
+        'OPENAI_API_KEY=',
+        'OPENAI_IMAGE_SIZE=1024x1024',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const persistentEnvPath = join(testHome, '.agents', 'config', 'add-me', '.env');
+    const canonicalEnvPath = join(testHome, '.agents', 'skills', 'add-me', '.env');
+
+    writeFileSync(
+      persistentEnvPath,
+      [
+        'OPENAI_API_KEY=key',
+        'OPENAI_IMAGE_SIZE=1024x1024',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    writeFileSync(
+      canonicalEnvPath,
+      [
+        'OPENAI_API_KEY=key',
+        'OPENAI_IMAGE_SIZE=2048x2048',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    utimesSync(persistentEnvPath, new Date('2024-01-01T00:00:00Z'), new Date('2024-01-01T00:00:00Z'));
+    utimesSync(canonicalEnvPath, new Date('2024-01-02T00:00:00Z'), new Date('2024-01-02T00:00:00Z'));
+
+    const result = runCli(['add', './skill-src', '--global'], testDir, env);
+
+    expect(result.exitCode).toBe(0);
+
+    const canonicalEnv = readFileSync(canonicalEnvPath, 'utf-8');
+    const persistentEnv = readFileSync(persistentEnvPath, 'utf-8');
+
+    expect(canonicalEnv).toContain('OPENAI_IMAGE_SIZE=2048x2048');
+    expect(persistentEnv).toContain('OPENAI_IMAGE_SIZE=2048x2048');
   }, 30000);
 
   it('rejects unsupported agent names before installation', () => {

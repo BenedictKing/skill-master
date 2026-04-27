@@ -1,4 +1,4 @@
-import { installSkill } from '../core/installer.js';
+import { installSkill, installSkillToAgents } from '../core/installer.js';
 import { cloneRepo, parseSource } from '../core/git-source.js';
 import { confirmProjectRoot, formatProjectRelativeSource, resolveProjectRoot } from '../core/project-root.js';
 import { findAllSkillDirectoriesWithPlugins, readSkillMd, type DiscoveredSkill } from '../core/skill-parser.js';
@@ -188,6 +188,10 @@ function printAddHelp(): void {
   console.log('  --upstream            Prefer upstream source for forked repositories');
   console.log('  --copy                Copy instead of symlink');
   console.log('  --force               Force reinstall');
+  console.log('');
+  console.log('Examples:');
+  console.log('  skill-master add owner/repo');
+  console.log('  skill-master add ./local-skill');
 }
 
 async function resolveUpstreamSource(source: string, enabled: boolean): Promise<string> {
@@ -418,40 +422,47 @@ export async function add(args: string[]): Promise<void> {
 
   try {
     for (const { path: dir, pluginName } of targetDirs) {
-      for (const agent of agents) {
-        // Build the original source reference for registry
-        // For git sources, preserve the URL; for local, use the actual path
-        const installSource: SkillSource = parsed.type === 'git'
-          ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir }
-          : { type: 'local', path: dir };
-
-        const result = await installSkill({
+      // For git sources, preserve the URL; for local, use the actual path
+      const installSource: SkillSource = parsed.type === 'git'
+        ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir }
+        : { type: 'local', path: dir };
+      const concreteAgents = agents.filter((agent): agent is AgentPlatform => agent !== undefined);
+      const results = concreteAgents.length === agents.length
+        ? await installSkillToAgents({
           source: installSource,
-          agent: agent as AgentPlatform | undefined,
+          agents: concreteAgents,
           cwd,
           global: flags.global,
           copy: flags.copy,
           force: flags.force,
           yes: flags.yes,
-        });
+        })
+        : [await installSkill({
+          source: installSource,
+          agent: agents[0] as AgentPlatform | undefined,
+          cwd,
+          global: flags.global,
+          copy: flags.copy,
+          force: flags.force,
+          yes: flags.yes,
+        })];
 
-        // Update local lock for non-global installs
-        if (!flags.global) {
-          // Record relative skill dir path for multi-skill source repos
-          const skillDir = relative(sourceDir, dir);
-          await addSkillToLocalLock(result.skillName, {
-            source: parsed.type === 'git' ? effectiveSource : formatProjectRelativeSource(cwd, sourceDir),
-            sourceType: parsed.type === 'git' ? 'github' : 'local',
-            computedHash: await computeSkillFolderHash(result.canonicalPath),
-            ...(skillDir && skillDir !== '.' ? { skillDir } : {}),
-            ...(pluginName ? { pluginName } : {}),
-          }, cwd);
-        }
+      // Update local lock for non-global installs
+      if (!flags.global) {
+        // Record relative skill dir path for multi-skill source repos
+        const skillDir = relative(sourceDir, dir);
+        await addSkillToLocalLock(results[0].skillName, {
+          source: parsed.type === 'git' ? effectiveSource : formatProjectRelativeSource(cwd, sourceDir),
+          sourceType: parsed.type === 'git' ? 'github' : 'local',
+          computedHash: await computeSkillFolderHash(results[0].canonicalPath),
+          ...(skillDir && skillDir !== '.' ? { skillDir } : {}),
+          ...(pluginName ? { pluginName } : {}),
+        }, cwd);
+      }
 
-        completedInstallations++;
-        if (completedInstallations < totalInstallations) {
-          logger.blank();
-        }
+      completedInstallations += results.length;
+      if (completedInstallations < totalInstallations) {
+        logger.blank();
       }
     }
   } catch (err) {
