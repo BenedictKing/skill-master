@@ -1,9 +1,11 @@
 import { installSkill, sanitizeName } from '../core/installer.js';
 import { discoverNodeModulesSkills, readSkillMd } from '../core/skill-parser.js';
 import { readLocalLock, addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
+import { confirmProjectRoot, formatProjectRelativeSource, resolveProjectRoot } from '../core/project-root.js';
+import { detectPlatform, getAgentSkillsRoot, isSupportedPlatform } from '../platform/agents.js';
 import * as logger from '../utils/logger.js';
 import type { AgentPlatform } from '../types/index.js';
-import { relative } from 'node:path';
+import { join } from 'node:path';
 
 export interface SyncFlags {
   agent: string[];
@@ -73,6 +75,28 @@ function printSyncHelp(): void {
   console.log('  -f, --force           Force reinstall even if unchanged');
 }
 
+function resolveSyncAgents(flags: SyncFlags): AgentPlatform[] {
+  return flags.agent.map((agent) => {
+    if (!isSupportedPlatform(agent)) {
+      throw new Error(`Unsupported agent platform: ${agent}`);
+    }
+    return agent;
+  });
+}
+
+function buildProjectRootPreview(cwd: string, flags: SyncFlags): Array<{ label: string; value: string }> {
+  const agents = flags.agent.length > 0 ? resolveSyncAgents(flags) : [detectPlatform(cwd)];
+
+  return [
+    { label: 'project-root', value: cwd },
+    { label: 'skills-lock', value: join(cwd, 'skills-lock.json') },
+    ...agents.map((agent) => ({
+      label: `skills-dir (${agent})`,
+      value: getAgentSkillsRoot(cwd, agent),
+    })),
+  ];
+}
+
 interface SkillInfo {
   dir: string;
   name: string;
@@ -89,7 +113,13 @@ export async function sync(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  const cwd = process.cwd();
+  const rootResolution = resolveProjectRoot(process.cwd());
+  const cwd = await confirmProjectRoot(rootResolution, flags.yes, {
+    details: buildProjectRootPreview(rootResolution.root, flags),
+  });
+  if (cwd !== process.cwd()) {
+    logger.info(`Project root: ${cwd}`);
+  }
 
   // Step 1: Discover skills in node_modules
   logger.info('Scanning node_modules for skills...');
@@ -155,7 +185,7 @@ export async function sync(args: string[]): Promise<void> {
   }
 
   // Step 5: Install
-  const agents = flags.agent.length > 0 ? flags.agent : [undefined];
+  const agents = flags.agent.length > 0 ? resolveSyncAgents(flags) : [undefined];
 
   for (const s of actionable) {
     for (const agent of agents) {
@@ -171,7 +201,7 @@ export async function sync(args: string[]): Promise<void> {
         });
 
         await addSkillToLocalLock(result.skillName, {
-          source: relative(cwd, s.dir),
+          source: formatProjectRelativeSource(cwd, s.dir),
           sourceType: 'node_modules',
           computedHash: await computeSkillFolderHash(result.canonicalPath),
         }, cwd);

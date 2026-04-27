@@ -1,13 +1,15 @@
 import { installSkill } from '../core/installer.js';
 import { cloneRepo, parseSource } from '../core/git-source.js';
+import { confirmProjectRoot, formatProjectRelativeSource, resolveProjectRoot } from '../core/project-root.js';
 import { findAllSkillDirectoriesWithPlugins, readSkillMd, type DiscoveredSkill } from '../core/skill-parser.js';
 import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
+import { detectGlobalPlatforms, detectPlatform, getAgentSkillsRoot, getInstallablePlatforms, isSupportedPlatform } from '../platform/agents.js';
 import { SkillNotFoundError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
 import { parseSourceAndSkill } from '../utils/parse-positional.js';
 import type { SkillSource, AgentPlatform } from '../types/index.js';
 import { existsSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 
 export interface AddFlags {
   global: boolean;
@@ -175,7 +177,7 @@ function printAddHelp(): void {
   console.log('');
   console.log('Options:');
   console.log('  -h, --help            Show this help message');
-  console.log('  -g, --global          Install globally (~/.agents/)');
+  console.log('  -g, --global          Install globally for detected agents');
   console.log('  -a, --agent <agents>  Target agents (space-separated)');
   console.log('  -s, --skill <skills>  Select skills (space-separated)');
   console.log('  -y, --yes             Skip confirmations');
@@ -236,6 +238,60 @@ async function resolveUpstreamSource(source: string, enabled: boolean): Promise<
   }
 }
 
+function resolveRequestedAgents(requested: string[]): AgentPlatform[] {
+  if (requested.includes('*')) {
+    return getInstallablePlatforms();
+  }
+
+  return requested.map((agent) => {
+    if (!isSupportedPlatform(agent)) {
+      throw new Error(`Unsupported agent platform: ${agent}`);
+    }
+    return agent;
+  });
+}
+
+function resolveAgentTargets(flags: AddFlags, cwd: string): Array<AgentPlatform | undefined> {
+  const requested = flags.agent.length > 0 ? flags.agent : [];
+  if (requested.includes('*')) {
+    return getInstallablePlatforms();
+  }
+
+  if (requested.length > 0) {
+    return resolveRequestedAgents(requested);
+  }
+
+  if (!flags.global) {
+    return [undefined];
+  }
+
+  const detected = detectGlobalPlatforms();
+  if (detected.length > 0) {
+    logger.info(`Global install targets: ${detected.join(', ')}`);
+    return detected;
+  }
+
+  const fallback = detectPlatform(cwd);
+  logger.info(`Global install target: ${fallback}`);
+  return [fallback];
+}
+
+function buildProjectRootPreview(flags: AddFlags, cwd: string): Array<{ label: string; value: string }> {
+  const requested = flags.agent.length > 0 ? flags.agent : [];
+  const agents = requested.length > 0
+    ? resolveRequestedAgents(requested)
+    : [detectPlatform(cwd)];
+
+  return [
+    { label: 'project-root', value: cwd },
+    { label: 'skills-lock', value: join(cwd, 'skills-lock.json') },
+    ...agents.map((agent) => ({
+      label: `skills-dir (${agent})`,
+      value: getAgentSkillsRoot(cwd, agent),
+    })),
+  ];
+}
+
 /** add command — install skills (compatible with `npx skills add`) */
 export async function add(args: string[]): Promise<void> {
   if (args.length === 0) {
@@ -255,7 +311,7 @@ export async function add(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const cwd = process.cwd();
+  const commandCwd = process.cwd();
   const effectiveSource = await resolveUpstreamSource(source, flags.upstream);
 
   // Parse source string into structured form
@@ -280,7 +336,7 @@ export async function add(args: string[]): Promise<void> {
       }
     }
   } else {
-    sourceDir = parsed.path!;
+    sourceDir = resolve(commandCwd, parsed.path!);
     if (!existsSync(sourceDir)) {
       throw new SkillNotFoundError(sourceDir);
     }
@@ -343,8 +399,20 @@ export async function add(args: string[]): Promise<void> {
     targetDirs = filtered;
   }
 
+  const rootResolution = flags.global
+    ? { root: commandCwd, source: 'cwd' as const }
+    : resolveProjectRoot(commandCwd);
+  const cwd = flags.global
+    ? commandCwd
+    : await confirmProjectRoot(rootResolution, flags.yes, {
+      details: buildProjectRootPreview(flags, rootResolution.root),
+    });
+  if (!flags.global && cwd !== commandCwd) {
+    logger.info(`Project root: ${cwd}`);
+  }
+
   // If multiple agents specified, install for each
-  const agents = flags.agent.length > 0 ? flags.agent : [undefined];
+  const agents = resolveAgentTargets(flags, cwd);
   const totalInstallations = targetDirs.length * agents.length;
   let completedInstallations = 0;
 
@@ -372,7 +440,7 @@ export async function add(args: string[]): Promise<void> {
           // Record relative skill dir path for multi-skill source repos
           const skillDir = relative(sourceDir, dir);
           await addSkillToLocalLock(result.skillName, {
-            source: effectiveSource,
+            source: parsed.type === 'git' ? effectiveSource : formatProjectRelativeSource(cwd, sourceDir),
             sourceType: parsed.type === 'git' ? 'github' : 'local',
             computedHash: await computeSkillFolderHash(result.canonicalPath),
             ...(skillDir && skillDir !== '.' ? { skillDir } : {}),

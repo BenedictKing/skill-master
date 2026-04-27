@@ -3,11 +3,12 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { installSkill, isPathSafe, sanitizeName } from '../core/installer.js';
 import { cloneRepo, parseSource } from '../core/git-source.js';
 import { readLocalLock } from '../core/local-lock.js';
+import { resolveProjectCwd } from '../core/project-root.js';
 import { getRegistryEntry } from '../core/registry.js';
 import { findAllSkillDirectories, readSkillMd } from '../core/skill-parser.js';
 import * as logger from '../utils/logger.js';
 import { SkillNotFoundError } from '../utils/errors.js';
-import type { RegistryEntry, SkillSource } from '../types/index.js';
+import type { LocalLockEntry, ParsedSource, RegistryEntry, SkillSource } from '../types/index.js';
 
 interface SkillDirResolutionSuccess {
   ok: true;
@@ -21,6 +22,7 @@ interface SkillDirResolutionFailure {
 
 interface ResolveUpdateSourceOptions {
   preferProjectLock?: boolean;
+  fallbackCwd?: string;
 }
 
 interface UpdateSourceResolutionSuccess {
@@ -150,10 +152,30 @@ function isPathWithin(basePath: string, targetPath: string): boolean {
   return rel === '' || rel === '.' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
-function isLockSourceCompatible(lockSource: string, entrySource: string, cwd: string): boolean {
+function parseLockSource(lockEntry: LocalLockEntry): ParsedSource {
+  if (lockEntry.sourceType !== 'github') {
+    return { type: 'local', path: lockEntry.source };
+  }
+
+  return parseSource(lockEntry.source);
+}
+
+function parseRegistrySourceForUpdate(source: string, cwd: string, fallbackCwd?: string): ParsedSource {
+  if (!isAbsolute(source)) {
+    const fallbackPath = fallbackCwd ? resolve(fallbackCwd, source) : undefined;
+    const projectPath = resolve(cwd, source);
+    if ((fallbackPath && existsSync(fallbackPath)) || existsSync(projectPath)) {
+      return { type: 'local', path: source };
+    }
+  }
+
+  return parseSource(source);
+}
+
+function isLockSourceCompatible(lockEntry: LocalLockEntry, entrySource: string, cwd: string, fallbackCwd?: string): boolean {
   try {
-    const parsedLock = parseSource(lockSource);
-    const parsedEntry = parseSource(entrySource);
+    const parsedLock = parseLockSource(lockEntry);
+    const parsedEntry = parseRegistrySourceForUpdate(entrySource, cwd, fallbackCwd);
 
     if (parsedLock.type !== parsedEntry.type) {
       return false;
@@ -164,8 +186,11 @@ function isLockSourceCompatible(lockSource: string, entrySource: string, cwd: st
     }
 
     const lockPath = resolveLocalSourcePath(cwd, parsedLock.path!);
-    const entryPath = resolveLocalSourcePath(cwd, parsedEntry.path!);
-    return lockPath === entryPath || isPathWithin(lockPath, entryPath);
+    const entryPaths = [resolveLocalSourcePath(cwd, parsedEntry.path!)];
+    if (fallbackCwd && !isAbsolute(parsedEntry.path!)) {
+      entryPaths.push(resolveLocalSourcePath(fallbackCwd, parsedEntry.path!));
+    }
+    return entryPaths.some(entryPath => lockPath === entryPath || isPathWithin(lockPath, entryPath));
   } catch {
     return false;
   }
@@ -181,13 +206,15 @@ export async function resolveUpdateSource(
     ? (await readLocalLock(cwd)).skills[skillName]
     : undefined;
 
-  const useLock = Boolean(lockEntry) && isLockSourceCompatible(lockEntry!.source, entry.source, cwd);
+  const useLock = Boolean(lockEntry) && isLockSourceCompatible(lockEntry!, entry.source, cwd, options.fallbackCwd);
   const sourceLabel = useLock ? lockEntry!.source : entry.source;
   const hint = buildReinstallHint(sourceLabel);
 
   let parsed;
   try {
-    parsed = parseSource(sourceLabel);
+    parsed = useLock
+      ? parseLockSource(lockEntry!)
+      : parseRegistrySourceForUpdate(sourceLabel, cwd, options.fallbackCwd);
   } catch (err) {
     return {
       ok: false,
@@ -197,6 +224,14 @@ export async function resolveUpdateSource(
   }
 
   let sourceDir: string;
+  if (parsed.subpath && !isPathSafe(join('/source', parsed.subpath), '/source')) {
+    return {
+      ok: false,
+      reason: `来源子路径越界：${parsed.subpath}`,
+      hint,
+    };
+  }
+
   if (parsed.type === 'git') {
     try {
       sourceDir = await cloneRepo(parsed.url!, parsed.ref);
@@ -208,7 +243,16 @@ export async function resolveUpdateSource(
       };
     }
   } else {
-    sourceDir = resolve(cwd, parsed.path!);
+    if (!useLock && options.fallbackCwd && !isAbsolute(parsed.path!)) {
+      const fallbackSourceDir = resolve(options.fallbackCwd, parsed.path!);
+      if (existsSync(fallbackSourceDir)) {
+        sourceDir = fallbackSourceDir;
+      } else {
+        sourceDir = resolve(cwd, parsed.path!);
+      }
+    } else {
+      sourceDir = resolve(cwd, parsed.path!);
+    }
     if (!existsSync(sourceDir)) {
       return {
         ok: false,
@@ -259,6 +303,8 @@ export async function update(args: string[]): Promise<void> {
   }
 
   const skillName = args[0];
+  const commandCwd = process.cwd();
+  const projectCwd = resolveProjectCwd(commandCwd);
 
   try {
     const entry = await getRegistryEntry(skillName);
@@ -273,8 +319,10 @@ export async function update(args: string[]): Promise<void> {
 
     for (const agentRecord of entry.agents) {
       const targetLabel = `${agentRecord.agent}${agentRecord.global ? ' (global)' : ' (project)'}`;
-      const resolved = await resolveUpdateSource(skillName, entry, process.cwd(), {
+      const installCwd = agentRecord.global ? commandCwd : projectCwd;
+      const resolved = await resolveUpdateSource(skillName, entry, installCwd, {
         preferProjectLock: !agentRecord.global,
+        fallbackCwd: agentRecord.global ? undefined : commandCwd,
       });
       if (!resolved.ok) {
         failures.push(`${targetLabel}: ${resolved.reason}`);
@@ -292,7 +340,7 @@ export async function update(args: string[]): Promise<void> {
         await installSkill({
           source: resolved.source,
           agent: agentRecord.agent,
-          cwd: process.cwd(),
+          cwd: installCwd,
           global: agentRecord.global,
           force: true,
         });

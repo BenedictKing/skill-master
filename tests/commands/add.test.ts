@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { parseAddFlags } from '../../src/commands/add.js';
@@ -57,7 +57,7 @@ describe('add command', () => {
       'utf-8',
     );
 
-    const result = runCli(['add', './multi-src'], testDir, { HOME: testHome });
+    const result = runCli(['add', './multi-src', '--yes'], testDir, { HOME: testHome });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain(
@@ -69,6 +69,144 @@ describe('add command', () => {
       'skill-master [9/9] Updating registry...\n\n' +
       'skill-master ✔ Skill "alpha-skill" installed successfully!',
     );
+  }, 30000);
+
+  it('installs project-local links and lock file at the git root', () => {
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'project');
+    const nestedDir = join(projectDir, 'packages', 'app');
+
+    mkdirSync(join(projectDir, '.git'), { recursive: true });
+    mkdirSync(join(projectDir, '.claude'), { recursive: true });
+    mkdirSync(join(projectDir, 'skill-src'), { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    mkdirSync(testHome, { recursive: true });
+    writeFileSync(
+      join(projectDir, 'skill-src', 'SKILL.md'),
+      `---\nname: git-root-skill\ndescription: git root target\nallowed-tools:\n  - Read\n---\n# git-root-skill\n`,
+      'utf-8',
+    );
+
+    const result = runCli(['add', '../../skill-src'], nestedDir, { HOME: testHome });
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(projectDir, '.claude', 'skills', 'git-root-skill'))).toBe(true);
+    expect(existsSync(join(nestedDir, '.claude', 'skills', 'git-root-skill'))).toBe(false);
+    expect(existsSync(join(projectDir, 'skills-lock.json'))).toBe(true);
+    expect(existsSync(join(nestedDir, 'skills-lock.json'))).toBe(false);
+
+    const lock = JSON.parse(readFileSync(join(projectDir, 'skills-lock.json'), 'utf-8'));
+    expect(lock.skills['git-root-skill'].source).toBe('./skill-src');
+  }, 30000);
+
+  it('uses an AGENTS.md root without git when --yes is provided', () => {
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'agent-project');
+    const nestedDir = join(projectDir, 'nested');
+
+    mkdirSync(join(projectDir, '.claude'), { recursive: true });
+    mkdirSync(join(projectDir, 'skill-src'), { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    mkdirSync(testHome, { recursive: true });
+    writeFileSync(join(projectDir, 'AGENTS.md'), '# Agent project\n', 'utf-8');
+    writeFileSync(
+      join(projectDir, 'skill-src', 'SKILL.md'),
+      `---\nname: agents-root-skill\ndescription: agents root target\nallowed-tools:\n  - Read\n---\n# agents-root-skill\n`,
+      'utf-8',
+    );
+
+    const result = runCli(['add', '../skill-src', '--yes'], nestedDir, { HOME: testHome });
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(projectDir, '.claude', 'skills', 'agents-root-skill'))).toBe(true);
+    expect(existsSync(join(nestedDir, '.claude', 'skills', 'agents-root-skill'))).toBe(false);
+  }, 30000);
+
+  it('shows the guessed project root and expected layout before confirmation', () => {
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'agent-project');
+    const nestedDir = join(projectDir, 'nested');
+
+    mkdirSync(join(projectDir, '.claude'), { recursive: true });
+    mkdirSync(join(projectDir, 'skill-src'), { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    mkdirSync(testHome, { recursive: true });
+    writeFileSync(join(projectDir, 'AGENTS.md'), '# Agent project\n', 'utf-8');
+    writeFileSync(
+      join(projectDir, 'skill-src', 'SKILL.md'),
+      `---\nname: preview-root-skill\ndescription: preview target\nallowed-tools:\n  - Read\n---\n# preview-root-skill\n`,
+      'utf-8',
+    );
+
+    const result = runCli(['add', '../skill-src'], nestedDir, { HOME: testHome });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain('No default project root found.');
+    expect(result.stdout).toContain('Guessed project root from AGENTS.md:');
+    expect(result.stdout).toContain('/agent-project');
+    expect(result.stdout).toContain('skills-lock:');
+    expect(result.stdout).toContain('/agent-project/skills-lock.json');
+    expect(result.stdout).toContain('skills-dir (claude-code):');
+    expect(result.stdout).toContain('/agent-project/.claude/skills');
+    expect(result.stdout + result.stderr).toContain('Re-run with --yes to install under');
+  }, 30000);
+
+  it('lists skills without requiring AGENTS.md root confirmation', () => {
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'list-project');
+    const nestedDir = join(projectDir, 'nested');
+
+    mkdirSync(join(projectDir, 'skill-src'), { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    mkdirSync(testHome, { recursive: true });
+    writeFileSync(join(projectDir, 'AGENTS.md'), '# Agent project\n', 'utf-8');
+    writeFileSync(
+      join(projectDir, 'skill-src', 'SKILL.md'),
+      `---\nname: list-root-skill\ndescription: list target\nallowed-tools:\n  - Read\n---\n# list-root-skill\n`,
+      'utf-8',
+    );
+
+    const result = runCli(['add', '../skill-src', '--list'], nestedDir, { HOME: testHome });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('list-root-skill');
+    expect(result.stdout).not.toContain('No git repository found');
+  }, 30000);
+
+  it('installs global links to detected global agent configs by default', () => {
+    const testHome = join(testDir, 'home');
+    const configHome = join(testHome, '.config');
+    const env = {
+      HOME: testHome,
+      XDG_CONFIG_HOME: configHome,
+      CODEX_HOME: join(testHome, '.codex'),
+      CLAUDE_CONFIG_DIR: join(testHome, '.claude'),
+    };
+
+    mkdirSync(join(configHome, 'opencode'), { recursive: true });
+    mkdirSync(env.CODEX_HOME, { recursive: true });
+    mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true });
+
+    const result = runCli(['add', './skill-src', '--global'], testDir, env);
+
+    expect(result.exitCode).toBe(0);
+    expect(existsSync(join(configHome, 'opencode', 'skills', 'add-me'))).toBe(true);
+    expect(existsSync(join(env.CODEX_HOME, 'skills', 'add-me'))).toBe(true);
+    expect(existsSync(join(env.CLAUDE_CONFIG_DIR, 'skills', 'add-me'))).toBe(true);
+
+    const registry = JSON.parse(readFileSync(join(testHome, '.agents', 'registry.json'), 'utf-8'));
+    expect(registry.skills['add-me'].agents.map((agent: { agent: string }) => agent.agent).sort()).toEqual([
+      'claude-code',
+      'codex',
+      'opencode',
+    ]);
+  }, 30000);
+
+  it('rejects unsupported agent names before installation', () => {
+    const result = runCli(['add', './skill-src', '--agent', 'toString', '--yes'], testDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain('Unsupported agent platform: toString');
   }, 30000);
 
   describe('parseAddFlags', () => {

@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 
 const home = homedir();
@@ -334,6 +334,14 @@ export function getSupportedPlatforms(): AgentPlatform[] {
   return Object.keys(AGENTS) as AgentPlatform[];
 }
 
+export function isSupportedPlatform(value: string): value is AgentPlatform {
+  return Object.prototype.hasOwnProperty.call(AGENTS, value);
+}
+
+export function getInstallablePlatforms(): AgentPlatform[] {
+  return getSupportedPlatforms().filter((platform) => platform !== 'universal');
+}
+
 export function detectPlatform(cwd: string): AgentPlatform {
   for (const [key, config] of Object.entries(AGENTS) as Array<[AgentPlatform, AgentConfig]>) {
     if (config.detectMarker && existsSync(join(cwd, config.detectMarker))) {
@@ -378,4 +386,21 @@ export function getNonUniversalAgents(): AgentPlatform[] {
 
 export function isUniversalAgent(type: AgentPlatform): boolean {
   return AGENTS[type].skillsDir === '.agents/skills';
+}
+
+function isSharedGlobalSkillsDir(skillsDir: string): boolean {
+  const normalized = resolve(skillsDir);
+  return normalized === resolve(join(home, '.agents', 'skills')) ||
+    normalized === resolve(join(configHome, 'agents', 'skills'));
+}
+
+export function detectGlobalPlatforms(): AgentPlatform[] {
+  return getInstallablePlatforms().filter((platform) => {
+    const config = AGENTS[platform];
+    if (isSharedGlobalSkillsDir(config.globalSkillsDir)) {
+      // The shared skill-master stores are not proof that a specific agent CLI is installed.
+      return false;
+    }
+    return existsSync(dirname(config.globalSkillsDir));
+  });
 }

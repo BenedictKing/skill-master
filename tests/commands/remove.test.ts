@@ -1,7 +1,43 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { parseRemoveFlags } from '../../src/commands/remove.js';
+import { runCli } from '../test-utils.js';
 
 describe('remove command', () => {
+  it('removes the project lock entry from the git root when run in a nested cwd', () => {
+    const testDir = join(tmpdir(), `skill-master-remove-root-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'project');
+    const nestedDir = join(projectDir, 'packages', 'app');
+
+    try {
+      mkdirSync(join(projectDir, '.git'), { recursive: true });
+      mkdirSync(join(projectDir, '.claude'), { recursive: true });
+      mkdirSync(join(projectDir, 'skill-src'), { recursive: true });
+      mkdirSync(nestedDir, { recursive: true });
+      mkdirSync(testHome, { recursive: true });
+      writeFileSync(
+        join(projectDir, 'skill-src', 'SKILL.md'),
+        `---\nname: remove-root-skill\ndescription: remove root target\nallowed-tools:\n  - Read\n---\n# remove-root-skill\n`,
+        'utf-8',
+      );
+
+      const addResult = runCli(['add', '../../skill-src'], nestedDir, { HOME: testHome });
+      expect(addResult.exitCode).toBe(0);
+
+      const removeResult = runCli(['remove', 'remove-root-skill', '--yes'], nestedDir, { HOME: testHome });
+      expect(removeResult.exitCode).toBe(0);
+      expect(existsSync(join(projectDir, '.claude', 'skills', 'remove-root-skill'))).toBe(false);
+
+      const lock = JSON.parse(readFileSync(join(projectDir, 'skills-lock.json'), 'utf-8'));
+      expect(lock.skills['remove-root-skill']).toBeUndefined();
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  }, 30000);
+
   describe('parseRemoveFlags', () => {
     it('should parse skill names as positional arguments', () => {
       const result = parseRemoveFlags(['skill1', 'skill2']);

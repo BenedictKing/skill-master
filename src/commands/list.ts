@@ -1,5 +1,6 @@
 import { listRegistry } from '../core/registry.js';
 import { readLocalLock } from '../core/local-lock.js';
+import { resolveProjectCwd } from '../core/project-root.js';
 import * as logger from '../utils/logger.js';
 
 export interface ListFlags {
@@ -77,7 +78,7 @@ export async function list(args: string[] = []): Promise<void> {
   }
 
   // Read local lock to get plugin groupings
-  const cwd = process.cwd();
+  const cwd = resolveProjectCwd(process.cwd());
   const localLock = await readLocalLock(cwd);
 
   // Group skills by plugin name

@@ -49,7 +49,7 @@ Usage:
   skill-master doctor                     Run diagnostics
 
 Add Options:
-  -g, --global          Install globally (~/.agents/)
+  -g, --global          Install globally for detected agents
   -a, --agent <agents>  Target agents (space-separated)
   -s, --skill <skills>  Select skills (space-separated)
   -y, --yes             Skip confirmations

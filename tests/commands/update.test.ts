@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { resolveSkillDirForUpdate, resolveUpdateSource } from '../../src/commands/update.js';
+import { runCli } from '../test-utils.js';
 import type { RegistryEntry } from '../../src/types/index.js';
 
 describe('update command', () => {
@@ -224,6 +225,52 @@ describe('update command', () => {
     }
   });
 
+  it('treats unprefixed local lock sources as project-relative paths', async () => {
+    const sourceRoot = join(testDir, 'sources', 'repo');
+    mkdirSync(sourceRoot, { recursive: true });
+    writeFileSync(
+      join(sourceRoot, 'SKILL.md'),
+      `---\nname: bare-lock-skill\ndescription: bare lock\nallowed-tools:\n  - Read\n---\n# bare lock\n`,
+      'utf-8',
+    );
+
+    writeFileSync(
+      join(testDir, 'skills-lock.json'),
+      JSON.stringify({
+        version: 1,
+        skills: {
+          'bare-lock-skill': {
+            source: 'sources/repo',
+            sourceType: 'local',
+            computedHash: 'abc123',
+          },
+        },
+      }, null, 2),
+      'utf-8',
+    );
+
+    const entry: RegistryEntry = {
+      source: sourceRoot,
+      installed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      agents: [{ agent: 'claude-code', agent_path: '/tmp/agent-skill', global: false }],
+      env_keys: [],
+      capabilities: [],
+      canonical_path: '/tmp/canonical-skill',
+    };
+
+    const result = await resolveUpdateSource('bare-lock-skill', entry, testDir, { preferProjectLock: true });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.usedLock).toBe(true);
+      expect(result.sourceLabel).toBe('sources/repo');
+      expect(result.source.type).toBe('local');
+      if (result.source.type === 'local') {
+        expect(result.source.path).toBe(sourceRoot);
+      }
+    }
+  });
+
   it('falls back to registry source for git-like updates without using stale project lock data', async () => {
     writeFileSync(
       join(testDir, 'skills-lock.json'),
@@ -253,7 +300,7 @@ describe('update command', () => {
     const result = await resolveUpdateSource('escaped-subpath', entry, testDir, { preferProjectLock: true });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.reason).toContain('无法获取远程来源');
+      expect(result.reason).toContain('来源子路径越界');
       expect(result.hint).toContain('owner/repo/../outside-skill');
     }
   }, 15000);
@@ -290,7 +337,7 @@ describe('update command', () => {
     if (!result.ok) {
       expect(result.reason).toContain('无法获取远程来源');
     }
-  });
+  }, 15000);
 
   it('skips project update when locked local source no longer exists', async () => {
     writeFileSync(
@@ -326,4 +373,104 @@ describe('update command', () => {
       expect(result.hint).toContain('./another-missing-path');
     }
   });
+
+  it('resolves legacy registry relative sources from the original command cwd', async () => {
+    const projectDir = join(testDir, 'project');
+    const nestedDir = join(projectDir, 'packages', 'app');
+    const sourceRoot = join(projectDir, 'skill-src');
+    mkdirSync(sourceRoot, { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    writeFileSync(
+      join(sourceRoot, 'SKILL.md'),
+      `---\nname: legacy-source-skill\ndescription: legacy source\nallowed-tools:\n  - Read\n---\n# legacy source\n`,
+      'utf-8',
+    );
+
+    const entry: RegistryEntry = {
+      source: '../../skill-src',
+      installed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      agents: [{ agent: 'claude-code', agent_path: '/tmp/agent-skill', global: false }],
+      env_keys: [],
+      capabilities: [],
+      canonical_path: '/tmp/canonical-skill',
+    };
+
+    const result = await resolveUpdateSource('legacy-source-skill', entry, projectDir, { fallbackCwd: nestedDir });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.source.type).toBe('local');
+      if (result.source.type === 'local') {
+        expect(result.source.path).toBe(sourceRoot);
+      }
+    }
+  });
+
+  it('prefers the original command cwd for legacy relative registry sources when both paths exist', async () => {
+    const projectDir = join(testDir, 'project');
+    const nestedDir = join(projectDir, 'packages', 'app');
+    const projectSource = join(projectDir, 'skill-src');
+    const nestedSource = join(nestedDir, 'skill-src');
+    mkdirSync(projectSource, { recursive: true });
+    mkdirSync(nestedSource, { recursive: true });
+    writeFileSync(
+      join(projectSource, 'SKILL.md'),
+      `---\nname: collision-skill\ndescription: project source\nallowed-tools:\n  - Read\n---\n# collision-skill\n`,
+      'utf-8',
+    );
+    writeFileSync(
+      join(nestedSource, 'SKILL.md'),
+      `---\nname: collision-skill\ndescription: nested source\nallowed-tools:\n  - Read\n---\n# collision-skill\n`,
+      'utf-8',
+    );
+
+    const entry: RegistryEntry = {
+      source: './skill-src',
+      installed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      agents: [{ agent: 'claude-code', agent_path: '/tmp/agent-skill', global: false }],
+      env_keys: [],
+      capabilities: [],
+      canonical_path: '/tmp/canonical-skill',
+    };
+
+    const result = await resolveUpdateSource('collision-skill', entry, projectDir, { fallbackCwd: nestedDir });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.source.type).toBe('local');
+      if (result.source.type === 'local') {
+        expect(result.source.path).toBe(nestedSource);
+      }
+    }
+  });
+
+  it('updates a project install from a nested cwd without moving the agent link', () => {
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'project');
+    const nestedDir = join(projectDir, 'packages', 'app');
+
+    mkdirSync(join(projectDir, '.git'), { recursive: true });
+    mkdirSync(join(projectDir, '.claude'), { recursive: true });
+    mkdirSync(join(projectDir, 'skill-src'), { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    mkdirSync(testHome, { recursive: true });
+    writeFileSync(
+      join(projectDir, 'skill-src', 'SKILL.md'),
+      `---\nname: update-root-skill\ndescription: update root target\nallowed-tools:\n  - Read\n---\n# update-root-skill\n`,
+      'utf-8',
+    );
+
+    const addResult = runCli(['add', '../../skill-src'], nestedDir, { HOME: testHome });
+    expect(addResult.exitCode).toBe(0);
+
+    const updateResult = runCli(['update', 'update-root-skill'], nestedDir, { HOME: testHome });
+    expect(updateResult.exitCode).toBe(0);
+    expect(existsSync(join(projectDir, '.claude', 'skills', 'update-root-skill'))).toBe(true);
+    expect(existsSync(join(nestedDir, '.claude', 'skills', 'update-root-skill'))).toBe(false);
+
+    const registry = JSON.parse(readFileSync(join(testHome, '.agents', 'registry.json'), 'utf-8'));
+    const agentPath = registry.skills['update-root-skill'].agents[0].agent_path;
+    expect(agentPath).toContain('/project/.claude/skills/update-root-skill');
+    expect(agentPath).not.toContain('/packages/app/');
+  }, 30000);
 });

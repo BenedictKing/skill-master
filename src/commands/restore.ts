@@ -1,9 +1,11 @@
 import { installSkill, sanitizeName } from '../core/installer.js';
 import { cloneRepo, parseSource } from '../core/git-source.js';
 import { readLocalLock, addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
+import { resolveProjectCwd } from '../core/project-root.js';
 import { discoverNodeModulesSkills, readSkillMd } from '../core/skill-parser.js';
 import * as logger from '../utils/logger.js';
 import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 export interface RestoreFlags {
   help: boolean;
@@ -39,7 +41,7 @@ export async function restore(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  const cwd = process.cwd();
+  const cwd = resolveProjectCwd(process.cwd());
   const lock = await readLocalLock(cwd);
   const entries = Object.entries(lock.skills);
 
@@ -145,7 +147,8 @@ export async function restore(args: string[]): Promise<void> {
 
   // Restore local skills
   for (const [name, entry] of local) {
-    if (!existsSync(entry.source)) {
+    const sourcePath = resolve(cwd, entry.source);
+    if (!existsSync(sourcePath)) {
       logger.warn(`Local source not found for "${name}": ${entry.source}`);
       failed++;
       continue;
@@ -153,8 +156,8 @@ export async function restore(args: string[]): Promise<void> {
     try {
       // Use skillDir to locate specific skill within multi-skill source
       const localPath = entry.skillDir
-        ? `${entry.source}/${entry.skillDir}`
-        : entry.source;
+        ? join(sourcePath, entry.skillDir)
+        : sourcePath;
       const result = await installSkill({
         source: { type: 'local', path: localPath },
         cwd,

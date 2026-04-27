@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { parseListFlags } from '../../src/commands/list.js';
+import { runCli } from '../test-utils.js';
 
 describe('list command', () => {
   describe('parseListFlags', () => {
@@ -62,4 +66,58 @@ describe('list command', () => {
       expect(result.agent).toEqual(['cursor']);
     });
   });
+
+  it('uses the git root lock file for plugin grouping from nested directories', () => {
+    const testDir = join(tmpdir(), `skill-master-list-test-${Date.now()}`);
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'project');
+    const nestedDir = join(projectDir, 'packages', 'app');
+
+    mkdirSync(join(projectDir, '.git'), { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    mkdirSync(join(testHome, '.agents'), { recursive: true });
+    writeFileSync(
+      join(testHome, '.agents', 'registry.json'),
+      JSON.stringify({
+        version: 2,
+        skills: {
+          'grouped-skill': {
+            source: 'skills/grouped-skill',
+            installed_at: '2026-04-27T00:00:00.000Z',
+            updated_at: '2026-04-27T00:00:00.000Z',
+            agents: [{ agent: 'claude-code', agent_path: join(projectDir, '.claude', 'skills', 'grouped-skill'), global: false }],
+            env_keys: [],
+            capabilities: [],
+            canonical_path: join(testHome, '.agents', 'skills', 'grouped-skill'),
+          },
+        },
+      }, null, 2),
+      'utf-8',
+    );
+    writeFileSync(
+      join(projectDir, 'skills-lock.json'),
+      JSON.stringify({
+        version: 1,
+        skills: {
+          'grouped-skill': {
+            source: 'skills/grouped-skill',
+            sourceType: 'local',
+            computedHash: 'hash',
+            pluginName: 'plugin-alpha',
+          },
+        },
+      }, null, 2),
+      'utf-8',
+    );
+
+    try {
+      const result = runCli(['list'], nestedDir, { HOME: testHome });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Plugin Alpha');
+      expect(result.stdout).toContain('grouped-skill');
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  }, 30000);
 });
