@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14] - 2026-04-27
+
+### Added
+- Added `AGENTS.md` with Codex-specific repository guidance for contributors using agent workflows
+- Added a `version-bump` skill under `.agents/skills` for release-oriented version automation
+
+### Changed
+- Clarified the local skill testing workflow in both `README.md` and `README.zh-CN.md`
+
+### Fixed
+- Preserved existing `.env` values during skill updates instead of overwriting configured entries
+- Confirmed guessed project roots more safely across install-related commands to reduce accidental writes in the wrong directory
+
 ## [0.1.13] - 2026-04-27
 
 ### Added
