@@ -77,6 +77,13 @@ skill-master add https://github.com/user/skill-name
 
 # 从本地路径安装
 skill-master add ./local-skill
+skill-master add ../skills/my-skill
+skill-master add /absolute/path/to/my-skill
+
+# 从包含多个 skill 的本地目录中发现或选择 skill
+skill-master add ./skills --list
+skill-master add ./skills --skill my-skill
+skill-master add ./skills --full-depth
 
 # 指定目标平台
 skill-master add https://github.com/user/skill --agent=cursor
@@ -84,6 +91,13 @@ skill-master add https://github.com/user/skill --agent=cursor
 # 使用复制而非符号链接（Windows 推荐）
 skill-master add https://github.com/user/skill --copy
 ```
+
+用于本地开发和测试 skill 时：
+
+- `add` 支持直接接收本地目录作为 source。
+- 如果目录里包含多个 skill，可以用 `--list`、`--skill` 或 `--full-depth` 来发现或筛选要安装的 skill。
+- 本地安装会先把 skill 复制到 canonical skill store，再链接到目标 agent 或项目。
+- 修改原始本地 skill 目录后，需要重新执行一次 `skill-master add <path>`，更新后的内容才会重新安装。
 
 ### 验证与组合
 

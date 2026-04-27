@@ -79,6 +79,13 @@ skill-master add https://github.com/user/skill
 
 # From local path
 skill-master add ./local-skill
+skill-master add ../skills/my-skill
+skill-master add /absolute/path/to/my-skill
+
+# Discover or select from a local multi-skill directory
+skill-master add ./skills --list
+skill-master add ./skills --skill my-skill
+skill-master add ./skills --full-depth
 
 # Specify target agent
 skill-master add owner/repo -a claude-code cursor
@@ -86,6 +93,13 @@ skill-master add owner/repo -a claude-code cursor
 # Copy mode (recommended for Windows)
 skill-master add owner/repo --copy
 ```
+
+For local skill development and testing:
+
+- `add` accepts local directories, so you can install a skill directly from a working folder.
+- If a directory contains multiple skills, use `--list`, `--skill`, or `--full-depth` to discover or narrow the install set.
+- Local installs are copied into the canonical skill store before being linked into the target agent/project.
+- After editing the original local skill directory, run `skill-master add <path>` again to reinstall the updated version.
 
 ### Verify and Compose
 
