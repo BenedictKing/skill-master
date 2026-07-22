@@ -65,7 +65,7 @@
     },
     "candidateProvider": {
       "type": "string",
-      "enum": ["skills.sh", "github", "local", "node_modules", "plugin-manifest", "registry", "gh-skill", "vercel"]
+      "enum": ["skills.sh", "github", "local", "node_modules", "plugin-manifest", "registry", "gh-skill", "vercel", "well-known"]
     },
     "candidateRiskLevel": {
       "type": "string",

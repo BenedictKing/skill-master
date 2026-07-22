@@ -48,7 +48,7 @@ function applyPreferences(
   if (preferences.localFirst) {
     if (candidate.provider === 'local' || candidate.provider === 'plugin-manifest' || candidate.provider === 'node_modules') {
       score += 20;
-    } else if (candidate.provider === 'github' || candidate.provider === 'skills.sh' || candidate.provider === 'gh-skill' || candidate.provider === 'vercel') {
+    } else if (candidate.provider === 'github' || candidate.provider === 'skills.sh' || candidate.provider === 'gh-skill' || candidate.provider === 'vercel' || candidate.provider === 'well-known') {
       score -= 10;
     }
   }
@@ -66,7 +66,7 @@ export function recommendCandidates(
   preferences?: RecommendationPreferences,
 ): Recommendation[] {
   const filtered = preferences?.noRemote
-    ? candidates.filter((candidate) => !['github', 'skills.sh', 'gh-skill', 'vercel'].includes(candidate.provider))
+    ? candidates.filter((candidate) => !['github', 'skills.sh', 'gh-skill', 'vercel', 'well-known'].includes(candidate.provider))
     : candidates;
 
   const scored = filtered.map((candidate) => {

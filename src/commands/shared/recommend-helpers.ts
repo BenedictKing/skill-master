@@ -39,11 +39,11 @@ export async function installRecommendedCandidate(
     skillDir = candidate.path;
   }
 
-  if (candidate.provider === 'github') {
+  if (candidate.provider === 'github' || candidate.provider === 'well-known') {
     const parsed = candidate.parsedSource ?? parseSource(candidate.source);
     installSource = skillDir
-      ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: skillDir }
-      : { type: 'git', url: parsed.url!, branch: parsed.ref };
+      ? { type: candidate.provider === 'well-known' ? 'well-known' as const : 'git' as const, url: parsed.url!, localPath: skillDir, displaySource: parsed.url! }
+      : { type: candidate.provider === 'well-known' ? 'well-known' as const : 'git' as const, url: parsed.url!, branch: parsed.ref };
   } else if (skillDir) {
     installSource = { type: 'local', path: skillDir };
   } else {
@@ -62,7 +62,7 @@ export async function installRecommendedCandidate(
 
   await addSkillToLocalLock(result.skillName, {
     source: candidate.source,
-    sourceType: ['github', 'skills.sh', 'gh-skill', 'vercel'].includes(candidate.provider) ? 'github' : 'local',
+    sourceType: ['github', 'skills.sh', 'gh-skill', 'vercel', 'well-known'].includes(candidate.provider) ? 'github' : 'local',
     computedHash: await computeSkillFolderHash(result.canonicalPath),
     ...(skillDir ? { skillDir: relative(cwd, skillDir).startsWith('..') ? skillDir : relative(cwd, skillDir) } : {}),
     verification: {

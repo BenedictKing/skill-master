@@ -232,8 +232,9 @@ async function fetchLegacySkill(entry: Extract<NormalizedWellKnownEntry, { versi
           if (!r.ok) return;
           const cl = Number(r.headers.get('content-length') ?? 0);
           if (cl > MAX_LEGACY_FILE_BYTES || totalBytes + cl > MAX_ARCHIVE_UNPACKED_BYTES) return;
-          const buf = new Uint8Array(await r.arrayBuffer());
-          if (buf.byteLength > MAX_LEGACY_FILE_BYTES || totalBytes + buf.byteLength > MAX_ARCHIVE_UNPACKED_BYTES) return;
+          // 流式读取限制大小，防止无 Content-Length 时内存耗尽
+          const buf = await readBodyWithLimit(r);
+          if (!buf || buf.byteLength > MAX_LEGACY_FILE_BYTES || totalBytes + buf.byteLength > MAX_ARCHIVE_UNPACKED_BYTES) return;
           totalBytes += buf.byteLength;
           files.set(filePath, buf);
         } catch { /* 单文件失败容忍（legacy 行为） */ }

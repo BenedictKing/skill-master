@@ -61,8 +61,13 @@ export async function discoverFromSource(source: string, fullDepth = false): Pro
   // well-known 端点：先尝试 well-known 发现，失败回退 git clone
   if (parsed.type === 'well-known') {
     try {
-      const skills = await fetchAllWellKnownSkills(parsed.url!);
+      let skills = await fetchAllWellKnownSkills(parsed.url!);
       if (skills.length > 0) {
+        // 按 skillFilter 过滤，避免物化不相关的技能
+        if (parsed.skillFilter) {
+          const filtered = skills.filter(s => s.name === parsed.skillFilter || s.installName === parsed.skillFilter);
+          if (filtered.length > 0) skills = filtered;
+        }
         const candidates: SkillCandidate[] = [];
         for (const s of skills) {
           // 物化到临时目录，使 compose 等命令能读取实际文件

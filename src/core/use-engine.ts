@@ -126,7 +126,17 @@ async function fetchGitSource(url: string, ref?: string, subpath?: string, skill
   const ownerRepo = url.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
   if (ownerRepo) {
     const blob = await tryBlobMaterialize(`${ownerRepo[1]}/${ownerRepo[2]}`, { subpath, skillFilter, ref });
-    if (blob) return { dir: blob.tempDir };
+    if (blob) {
+      // blob 快路径也需要应用 subpath 窄化
+      if (subpath) {
+        const sub = join(blob.tempDir, subpath);
+        if (existsSync(sub)) return { dir: sub, cloneRoot: blob.tempDir };
+        // subpath 不存在，清理临时目录并回退 clone
+        await removePath(blob.tempDir).catch(() => {});
+      } else {
+        return { dir: blob.tempDir };
+      }
+    }
   }
   const cloneDir = await cloneRepo(url, ref);
   if (subpath) {
@@ -209,7 +219,14 @@ export async function launchAgent(agent: AgentPlatform, prompt: string): Promise
       stdio: 'inherit',
     });
     child.on('error', reject);
-    child.on('close', code => resolvePromise(code ?? 0));
+    child.on('close', (code, signal) => {
+      // 信号终止时 code 为 null，返回非零退出码
+      if (code !== null) {
+        resolvePromise(code);
+      } else {
+        resolvePromise(signal ? 128 + 1 : 1); // SIGTERM=129, 其他信号=129, 无信号=1
+      }
+    });
   });
 }
 
