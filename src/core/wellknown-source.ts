@@ -222,16 +222,17 @@ async function fetchArtifactSkill(entry: Extract<NormalizedWellKnownEntry, { ver
     const response = await fetch(entry.artifactUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
     if (!response.ok) return null;
 
-    // 读取前用 Content-Length 预检，避免超大响应占满内存（OOM）。
+    // 读取前用 Content-Length 预检，尽早拒绝超大响应。
     const contentLength = Number(response.headers.get('content-length') ?? 0);
     if (contentLength > MAX_ARTIFACT_BYTES) {
       logger.warn(`well-known artifact 超出大小上限 (${contentLength} bytes): ${entry.name}`);
       return null;
     }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    // 无 Content-Length 或被压缩传输时，读取后再校验实际字节数。
-    if (bytes.byteLength > MAX_ARTIFACT_BYTES) {
-      logger.warn(`well-known artifact 超出大小上限 (${bytes.byteLength} bytes): ${entry.name}`);
+    // 流式读取：累计字节超限时立即中断，避免先缓冲整个超大响应导致 OOM
+    // （覆盖分块传输、缺失/伪造 Content-Length 的场景）。
+    const bytes = await readBodyWithLimit(response);
+    if (!bytes) {
+      logger.warn(`well-known artifact 超出大小上限 (${MAX_ARTIFACT_BYTES} bytes): ${entry.name}`);
       return null;
     }
 
@@ -310,6 +311,41 @@ async function writePayloadToDir(payload: WellKnownSkillPayload, dir: string): P
 
 function computeDigest(bytes: Uint8Array): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+}
+
+/**
+ * 流式读取 response body，累计字节超过 MAX_ARTIFACT_BYTES 时立即中断并返回 null。
+ * 避免先缓冲整个超大响应导致 OOM（分块传输、缺失/伪造 Content-Length 均安全）。
+ */
+async function readBodyWithLimit(response: Response): Promise<Uint8Array | null> {
+  if (!response.body) {
+    const buf = new Uint8Array(await response.arrayBuffer());
+    return buf.byteLength > MAX_ARTIFACT_BYTES ? null : buf;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_ARTIFACT_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 function extractArchive(bytes: Uint8Array, artifactUrl: string, contentType: string): Map<string, WellKnownFileContent> {

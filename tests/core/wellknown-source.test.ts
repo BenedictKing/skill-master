@@ -283,6 +283,50 @@ describe('fetchAllWellKnownSkills', () => {
     // 路径穿越导致解压抛错 → 该 skill 被过滤
     expect(await fetchAllWellKnownSkills('https://example.com')).toHaveLength(0);
   });
+
+  it('rejects oversized artifact via streaming limit', async () => {
+    // 构造一个超过 MAX_ARTIFACT_BYTES(100MB) 的分块流式响应，无 Content-Length
+    const chunk = new Uint8Array(1024 * 1024); // 1MB/块
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < 200; i++) controller.enqueue(chunk); // 200MB
+        controller.close();
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/.well-known/agent-skills/index.json')) {
+        return jsonResponse({
+          $schema: SCHEMA_V2,
+          skills: [{ name: 'big', description: 'd', type: 'skill-md', url: './big.md', digest: sha256('x') }],
+        });
+      }
+      if (url.endsWith('/big.md')) {
+        return new Response(stream, { status: 200 }); // 无 content-length
+      }
+      return jsonResponse({}, 404);
+    }));
+    // 超限被中断 → 该 skill 被过滤
+    expect(await fetchAllWellKnownSkills('https://example.com')).toHaveLength(0);
+  });
+
+  it('rejects oversized artifact via Content-Length precheck', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/.well-known/agent-skills/index.json')) {
+        return jsonResponse({
+          $schema: SCHEMA_V2,
+          skills: [{ name: 'big2', description: 'd', type: 'skill-md', url: './big.md', digest: sha256('x') }],
+        });
+      }
+      if (url.endsWith('/big.md')) {
+        return new Response('small', {
+          status: 200,
+          headers: { 'content-length': String(200 * 1024 * 1024) },
+        });
+      }
+      return jsonResponse({}, 404);
+    }));
+    expect(await fetchAllWellKnownSkills('https://example.com')).toHaveLength(0);
+  });
 });
 
 describe('materialize', () => {
