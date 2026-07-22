@@ -29,7 +29,7 @@ describe('compose command', () => {
   }, 15000);
 
   it('accepts installed skill name as compose source', () => {
-    const installResult = runCli(['add', './skill-src'], testDir);
+    const installResult = runCli(['add', './skill-src', '--yes'], testDir);
     expect(installResult.exitCode).toBe(0);
 
     const outputDir = join(testDir, 'generated');

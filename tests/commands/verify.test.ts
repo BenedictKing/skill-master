@@ -31,7 +31,7 @@ describe('verify command', () => {
       'utf-8',
     );
 
-    const installResult = runCli(['add', './skill-src'], testDir);
+    const installResult = runCli(['add', './skill-src', '--yes'], testDir);
     expect(installResult.exitCode).toBe(0);
 
     const verifyResult = runCli(['verify', 'verify-me'], testDir);
@@ -51,7 +51,7 @@ describe('verify command', () => {
       `---\nname: verify-json\ndescription: verify target\nallowed-tools:\n  - Read\n---\n# verify-json\n`,
       'utf-8',
     );
-    expect(runCli(['add', './skill-src'], testDir).exitCode).toBe(0);
+    expect(runCli(['add', './skill-src', '--yes'], testDir).exitCode).toBe(0);
 
     const result = runCliJson<VerifyJsonV1>(['verify', 'verify-json', '--json'], testDir);
     expect(result.exitCode).toBe(0);

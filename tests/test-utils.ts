@@ -6,6 +6,37 @@ import Ajv from 'ajv';
 const CLI_PATH = join(import.meta.dirname, '..', 'src', 'cli.ts');
 const TSX_PATH = join(import.meta.dirname, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
+/**
+ * Agent / CI 检测环境变量。测试子进程默认剥离这些变量，
+ * 使测试在「干净终端」语义下运行、结果可预期；
+ * 需要模拟 agent/CI 环境的测试可通过 env 显式注入。
+ */
+const AGENT_DETECTION_ENV_VARS = [
+  'CLAUDECODE',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CODEX_HOME',
+  'CODEX_CI',
+  'GEMINI_CLI',
+  'OPENCODE',
+  'CURSOR_AGENT',
+  'CURSOR_EXTENSION_HOST_ROLE',
+  'CURSOR_TRACE_ID',
+  'AIDER_DETERMINISTIC',
+  'REPL_ID',
+  'CI',
+  'GITHUB_ACTIONS',
+  'CONTINUOUS_INTEGRATION',
+];
+
+/** 构造剥离了 agent/CI 信号的基础环境。 */
+function baseEnv(): Record<string, string> {
+  const env = { ...process.env } as Record<string, string>;
+  for (const key of AGENT_DETECTION_ENV_VARS) {
+    delete env[key];
+  }
+  return env;
+}
+
 /** Strip ANSI escape codes from a string */
 export function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, '');
@@ -29,7 +60,7 @@ export function runCli(
         encoding: 'utf-8',
         cwd,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: env ? { ...process.env, ...env } : undefined,
+        env: { ...baseEnv(), ...env },
         timeout: timeout ?? 60000,
       },
     );

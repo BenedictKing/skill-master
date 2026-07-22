@@ -151,6 +151,30 @@ describe('add command', () => {
     expect(result.stdout + result.stderr).toContain('Re-run with --yes to install under');
   }, 30000);
 
+  it('proceeds without confirmation in CI environments', () => {
+    const testHome = join(testDir, 'home-ci');
+    const projectDir = join(testDir, 'ci-project');
+    const nestedDir = join(projectDir, 'nested');
+
+    mkdirSync(join(projectDir, '.claude'), { recursive: true });
+    mkdirSync(join(projectDir, 'skill-src'), { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    mkdirSync(testHome, { recursive: true });
+    writeFileSync(join(projectDir, 'AGENTS.md'), '# CI project\n', 'utf-8');
+    writeFileSync(
+      join(projectDir, 'skill-src', 'SKILL.md'),
+      `---\nname: ci-root-skill\ndescription: ci target\nallowed-tools:\n  - Read\n---\n# ci-root-skill\n`,
+      'utf-8',
+    );
+
+    // 注入 CI 信号：应跳过确认直接采用猜测的 project root（等价 --yes）
+    const result = runCli(['add', '../skill-src'], nestedDir, { HOME: testHome, CI: 'true' });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('Agent/CI environment detected');
+    expect(existsSync(join(projectDir, '.claude', 'skills', 'ci-root-skill'))).toBe(true);
+  }, 30000);
+
   it('lists skills without requiring AGENTS.md root confirmation', () => {
     const testHome = join(testDir, 'home');
     const projectDir = join(testDir, 'list-project');

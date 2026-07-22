@@ -72,12 +72,20 @@ function isCIEnv(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 /**
- * 是否应跳过交互（处于 agent 内部、CI，或 stdin 非 TTY）。
- * 与 -y/--yes 等价：为 true 时交互确认应直接采用默认值。
+ * 是否处于 agent 内部或 CI 环境（不含 TTY 判断）。
+ * 此类环境下 CLI 是被程序调用的，无法也不应等待人工输入，
+ * 交互确认应直接采用默认值（等价 --yes）。
+ */
+export function isAgentOrCIEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  return detectAgentEnv(env).isAgent || isCIEnv(env);
+}
+
+/**
+ * 是否完全无法交互（agent/CI，或 stdin 非 TTY）。
+ * 用于判断「连问都问不了」的场景；与 isAgentOrCIEnv 的区别是包含 TTY 检测。
  */
 export function isNonInteractiveEnv(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (detectAgentEnv(env).isAgent) return true;
-  if (isCIEnv(env)) return true;
+  if (isAgentOrCIEnv(env)) return true;
   return !process.stdin.isTTY;
 }
 

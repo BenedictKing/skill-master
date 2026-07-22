@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import * as logger from '../utils/logger.js';
 import { confirm } from '../utils/prompt.js';
-import { isNonInteractiveEnv } from '../platform/agent-env.js';
+import { isAgentOrCIEnv } from '../platform/agent-env.js';
 
 const PROJECT_MARKERS = ['CLAUDE.md', 'AGENTS.md', 'claude.md', 'agents.md'];
 
@@ -106,10 +106,15 @@ export async function confirmProjectRoot(
     }
   }
 
-  // agent / CI / 非 TTY 环境无法交互，等价于 --yes：直接采用猜测的 project root 继续。
-  if (isNonInteractiveEnv()) {
-    logger.info('Non-interactive environment detected, proceeding with guessed project root.');
+  // agent / CI 环境由程序调用，无法等待人工输入，等价 --yes：直接采用猜测的 project root。
+  // 仅非 TTY（如管道重定向）不属于此类 —— 用户可能是在手动操作，仍需显式 --yes 确认。
+  if (isAgentOrCIEnv()) {
+    logger.info('Agent/CI environment detected, proceeding with guessed project root.');
     return root.root;
+  }
+
+  if (!process.stdin.isTTY) {
+    throw new Error(`No default project root found. Re-run with --yes to install under ${root.root}.`);
   }
 
   const confirmed = await confirm(`Install project-local skills under ${root.root}? [y/N] `);

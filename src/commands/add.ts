@@ -1,5 +1,6 @@
 import { installSkill, installSkillToAgents } from '../core/installer.js';
 import { cloneRepo, getLockSource, parseSource } from '../core/git-source.js';
+import { tryBlobMaterialize } from '../core/blob-source.js';
 import { confirmProjectRoot, formatProjectRelativeSource, resolveProjectRoot } from '../core/project-root.js';
 import { findAllSkillDirectoriesWithPlugins, readSkillMd, type DiscoveredSkill } from '../core/skill-parser.js';
 import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
@@ -7,7 +8,7 @@ import { detectGlobalPlatforms, detectPlatform, getAgentSkillsRoot, getInstallab
 import { SkillNotFoundError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
 import { parseSourceAndSkill } from '../utils/parse-positional.js';
-import type { SkillSource, AgentPlatform } from '../types/index.js';
+import type { SkillSource, AgentPlatform, ParsedSource } from '../types/index.js';
 import { existsSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
@@ -296,6 +297,32 @@ function buildProjectRootPreview(flags: AddFlags, cwd: string): Array<{ label: s
   ];
 }
 
+/** 从 parsed git URL 提取 owner/repo（仅 GitHub shorthand/HTTPS）。无法识别返回 null。 */
+function extractOwnerRepo(url: string): string | null {
+  const m = url.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+/**
+ * 获取 git 来源的本地目录：白名单 owner 先试 blob 快路径（免 clone），
+ * 失败或非白名单回退 git clone。
+ */
+async function fetchGitSourceDir(parsed: ParsedSource): Promise<string> {
+  const ownerRepo = parsed.url ? extractOwnerRepo(parsed.url) : null;
+  if (ownerRepo) {
+    const blob = await tryBlobMaterialize(ownerRepo, {
+      subpath: parsed.subpath,
+      skillFilter: parsed.skillFilter,
+      ref: parsed.ref,
+    });
+    if (blob) {
+      logger.info('Using blob snapshot (fast path)');
+      return blob.tempDir;
+    }
+  }
+  return cloneRepo(parsed.url!, parsed.ref);
+}
+
 /** add command — install skills (compatible with `npx skills add`) */
 export async function add(args: string[]): Promise<void> {
   if (args.length === 0) {
@@ -331,7 +358,7 @@ export async function add(args: string[]): Promise<void> {
 
   if (parsed.type === 'git') {
     logger.step(1, 9, 'Fetching skill source...');
-    sourceDir = await cloneRepo(parsed.url!, parsed.ref);
+    sourceDir = await fetchGitSourceDir(parsed);
     // Narrow to subpath if specified
     if (parsed.subpath) {
       const sub = join(sourceDir, parsed.subpath);

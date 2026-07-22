@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   detectAgentEnv,
+  isAgentOrCIEnv,
   isNonInteractiveEnv,
   mapDetectedToPlatform,
   resetAgentEnvCache,
@@ -57,6 +58,24 @@ describe('detectAgentEnv', () => {
 
   it('returns isAgent=false in a clean env', () => {
     expect(detectAgentEnv(cleanEnv()).isAgent).toBe(false);
+  });
+});
+
+describe('isAgentOrCIEnv', () => {
+  beforeEach(() => resetAgentEnvCache());
+
+  it('is true inside an agent', () => {
+    expect(isAgentOrCIEnv(cleanEnv({ CLAUDECODE: '1' }))).toBe(true);
+  });
+
+  it('is true in CI', () => {
+    expect(isAgentOrCIEnv(cleanEnv({ CI: 'true' }))).toBe(true);
+    expect(isAgentOrCIEnv(cleanEnv({ GITHUB_ACTIONS: 'true' }))).toBe(true);
+  });
+
+  it('is false in a clean env regardless of TTY', () => {
+    // 与 isNonInteractiveEnv 的区别：不看 TTY，干净环境一律 false
+    expect(isAgentOrCIEnv(cleanEnv())).toBe(false);
   });
 });
 
