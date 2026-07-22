@@ -26,6 +26,7 @@ const COMMAND_COVERAGE: CoverageRow[] = [
   { command: 'check', testFile: 'check.test.ts' },
   { command: 'sync', testFile: 'sync.test.ts' },
   { command: 'restore', testFile: 'restore.test.ts' },
+  { command: 'use', testFile: 'use.test.ts' },
 ];
 
 function listCliCommands(): string[] {

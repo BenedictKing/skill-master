@@ -20,6 +20,7 @@ import { init } from './commands/init.js';
 import { check } from './commands/check.js';
 import { sync } from './commands/sync.js';
 import { restore } from './commands/restore.js';
+import { use } from './commands/use.js';
 import * as logger from './utils/logger.js';
 
 const CLI_DIR = fileURLToPath(new URL('.', import.meta.url));
@@ -38,6 +39,7 @@ Usage:
   skill-master recommend <task>           Recommend skills for a task
   skill-master verify <skill-name>        Verify an installed skill
   skill-master compose [sources...]       Compose or generate a skill
+  skill-master use <source>               Use a skill without installing it
   skill-master solve <task>               Solve task via discovery + recommendation flow
   skill-master update [skill]             Update skills (alias: upgrade)
   skill-master sync [options]             Sync skills from node_modules
@@ -176,6 +178,10 @@ async function main() {
       case 'restore':
       case 'install-lock':
         await restore(commandArgs);
+        break;
+
+      case 'use':
+        await use(commandArgs);
         break;
 
       case 'env':
