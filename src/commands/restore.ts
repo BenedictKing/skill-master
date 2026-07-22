@@ -114,12 +114,11 @@ export async function restore(args: string[]): Promise<void> {
   for (const [name, entry] of github) {
     try {
       const parsed = parseSource(entry.source);
-      if (parsed.type !== 'git' || !parsed.url) {
-        logger.warn(`Invalid source for "${name}": ${entry.source}`);
-        failed++;
-        continue;
-      }
-      const sourceDir = await cloneRepo(parsed.url, parsed.ref);
+      // sourceType 为 github 的来源一律按 git clone 恢复。
+      // 自托管 HTTPS git URL 可能被 parseSource 识别为 well-known，
+      // 但 lock 已明确其来自 git 安装，直接取 url clone，不做类型限制。
+      const cloneUrl = parsed.url ?? entry.source;
+      const sourceDir = await cloneRepo(cloneUrl, parsed.ref);
       // Build skill path: start from repo root, apply subpath, then skillDir
       let skillPath = sourceDir;
       if (parsed.subpath) {

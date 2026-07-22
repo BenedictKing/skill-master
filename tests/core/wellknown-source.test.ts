@@ -101,6 +101,55 @@ function buildZip(entries: Array<{ path: string; content: string }>): Uint8Array
   return new Uint8Array(Buffer.concat([localBuf, centralBuf, eocd]));
 }
 
+/** 构造 deflate 压缩的 zip（method 8），支持空条目与压缩内容。 */
+function buildZipDeflate(entries: Array<{ path: string; content: string }>): Uint8Array {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const { path, content } of entries) {
+    const nameBuf = Buffer.from(path, 'utf-8');
+    const raw = Buffer.from(content, 'utf-8');
+    const compressed = raw.length === 0 ? Buffer.alloc(0) : deflateRawSync(raw);
+    const crc = 0;
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x800, 6);
+    local.writeUInt16LE(8, 8); // method deflate
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt32LE(raw.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, nameBuf, compressed);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(0x800, 8);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(compressed.length, 20);
+    central.writeUInt32LE(raw.length, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, nameBuf);
+
+    offset += 30 + nameBuf.length + compressed.length;
+  }
+
+  const localBuf = Buffer.concat(localParts);
+  const centralBuf = Buffer.concat(centralParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralBuf.length, 12);
+  eocd.writeUInt32LE(localBuf.length, 16);
+  return new Uint8Array(Buffer.concat([localBuf, centralBuf, eocd]));
+}
+
 describe('isWellKnownCandidate', () => {
   it('accepts non-github/gitlab https URLs', () => {
     expect(isWellKnownCandidate('https://skills.example.com')).toBe(true);
@@ -350,6 +399,52 @@ describe('fetchAllWellKnownSkills', () => {
     }));
     // 解压超 maxOutputLength 抛错 → skill 被过滤，且不 OOM
     expect(await fetchAllWellKnownSkills('https://example.com')).toHaveLength(0);
+  });
+
+  it('handles deflate-compressed empty zip entries without crashing', async () => {
+    const zip = buildZipDeflate([
+      { path: 'SKILL.md', content: skillMd('empty-zip') },
+      { path: 'empty.txt', content: '' }, // deflate 压缩的空文件
+    ]);
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/.well-known/agent-skills/index.json')) {
+        return jsonResponse({
+          $schema: SCHEMA_V2,
+          skills: [{ name: 'empty-zip', description: 'd', type: 'archive', url: './s.zip', digest: sha256(zip) }],
+        });
+      }
+      if (url.endsWith('/s.zip')) {
+        return new Response(zip, { status: 200, headers: { 'content-type': 'application/zip' } });
+      }
+      return jsonResponse({}, 404);
+    }));
+    const skills = await fetchAllWellKnownSkills('https://example.com');
+    expect(skills).toHaveLength(1);
+    expect(skills[0]!.files.has('empty.txt')).toBe(true);
+  });
+
+  it('extracts a deflate zip with a moderately large file without false rejection', async () => {
+    // 合法中等大小 deflate zip：不应被预检+累计双重计数误杀
+    const bigText = 'x'.repeat(2 * 1024 * 1024); // 2MB
+    const zip = buildZipDeflate([
+      { path: 'SKILL.md', content: skillMd('mid-zip') },
+      { path: 'data.txt', content: bigText },
+    ]);
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/.well-known/agent-skills/index.json')) {
+        return jsonResponse({
+          $schema: SCHEMA_V2,
+          skills: [{ name: 'mid-zip', description: 'd', type: 'archive', url: './s.zip', digest: sha256(zip) }],
+        });
+      }
+      if (url.endsWith('/s.zip')) {
+        return new Response(zip, { status: 200, headers: { 'content-type': 'application/zip' } });
+      }
+      return jsonResponse({}, 404);
+    }));
+    const skills = await fetchAllWellKnownSkills('https://example.com');
+    expect(skills).toHaveLength(1);
+    expect(skills[0]!.files.get('data.txt')).toBeDefined();
   });
 });
 
