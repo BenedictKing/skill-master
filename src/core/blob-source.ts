@@ -101,7 +101,12 @@ async function fetchTreeBranch(ownerRepo: string, branch: string, token: string 
 
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT) });
     if (response.ok) {
-      const data = (await response.json()) as { sha: string; tree: TreeEntry[] };
+      const data = (await response.json()) as { sha: string; tree: TreeEntry[]; truncated?: boolean };
+      // tree 被截断时结果不完整，回退 clone 以避免遗漏 skill
+      if (data.truncated) {
+        logger.debug('GitHub tree response truncated, falling back to clone');
+        return { tree: null, rateLimited: false, authRetryable: false };
+      }
       return { tree: { sha: data.sha, branch, tree: data.tree }, rateLimited: false, authRetryable: false };
     }
 
@@ -326,12 +331,21 @@ export async function tryBlobMaterialize(
   );
   if (downloads.some(d => d.download === null)) return null;
 
-  // 校验下载快照中的 SKILL.md 与 GitHub 读取的一致，防止供应链篡改
+  // 校验下载快照中的文件路径与 GitHub tree 一致，防止供应链篡改
+  // GitHub tree 已在上游获取，可直接比对路径和 blob SHA
+  const treePaths = new Map(tree.tree.filter(e => e.type === 'blob').map(e => [e.path, e.sha]));
   for (const { skill, download } of downloads) {
     const skillMdFile = download!.files.find(f => f.path.toLowerCase().endsWith('/skill.md') || f.path.toLowerCase() === 'skill.md');
     if (!skillMdFile || skillMdFile.contents !== skill.content) {
       logger.warn('blob snapshot SKILL.md content mismatch, falling back to clone');
       return null;
+    }
+    // 所有下载文件路径必须存在于 GitHub tree 中
+    for (const file of download!.files) {
+      if (!treePaths.has(file.path)) {
+        logger.warn(`blob snapshot contains unknown file not in GitHub tree: ${file.path}, falling back to clone`);
+        return null;
+      }
     }
   }
 

@@ -156,7 +156,10 @@ describe('tryBlobMaterialize', () => {
   it('materializes snapshot files to a temp dir', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.includes('/git/trees/')) {
-        return jsonResponse({ sha: 's', tree: [{ path: 'skills/demo/SKILL.md', type: 'blob', sha: 'x' }] });
+        return jsonResponse({ sha: 's', tree: [
+          { path: 'skills/demo/SKILL.md', type: 'blob', sha: 'x' },
+          { path: 'skills/demo/helper.ts', type: 'blob', sha: 'y' },
+        ] });
       }
       if (url.includes('raw.githubusercontent.com')) {
         return new Response('---\nname: demo\ndescription: d\n---\n# demo', { status: 200 });
@@ -220,7 +223,7 @@ describe('tryBlobMaterialize', () => {
     expect(result).toBeNull();
   });
 
-  it('skips files with path traversal and does not escape tempDir', async () => {
+  it('rejects snapshot with files not in GitHub tree', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.includes('/git/trees/')) {
         return jsonResponse({ sha: 's', tree: [{ path: 'skills/demo/SKILL.md', type: 'blob', sha: 'x' }] });
@@ -242,12 +245,8 @@ describe('tryBlobMaterialize', () => {
       return jsonResponse({}, 404);
     }));
 
+    // 下载包含不在 GitHub tree 中的文件，整体拒绝
     const result = await tryBlobMaterialize('vercel-labs/agent-skills');
-    tempDir = result!.tempDir;
-    // 合法文件写入，非法路径被跳过且不逃逸 tempDir
-    expect(existsSync(join(tempDir, 'skills/demo/SKILL.md'))).toBe(true);
-    expect(existsSync(join(tempDir, 'skills/demo/ok.ts'))).toBe(true);
-    expect(existsSync(join(tempDir, '../evil.txt'))).toBe(false);
-    expect(existsSync(join(tempDir, 'escape.txt'))).toBe(false);
+    expect(result).toBeNull();
   });
 });

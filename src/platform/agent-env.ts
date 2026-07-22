@@ -37,7 +37,6 @@ const STRONG_SIGNALS: ReadonlyArray<readonly [string, string]> = [
   ['OPENCODE', 'opencode'],
   ['CURSOR_AGENT', 'cursor'],
   ['AIDER_DETERMINISTIC', 'aider'],
-  ['REPL_ID', 'replit'],
 ];
 
 /**
