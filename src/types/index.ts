@@ -30,9 +30,9 @@ export type InstallComplexity = 'low' | 'medium' | 'high';
 export type RecommendationTier = 'best' | 'conservative' | 'aggressive';
 export type VerificationSeverity = 'info' | 'warning' | 'error';
 
-/** Source of a skill: either a git URL or a local filesystem path */
+/** Source of a skill: git URL, well-known discovery URL, or local filesystem path */
 export interface SkillSource {
-  type: 'git' | 'local';
+  type: 'git' | 'local' | 'well-known';
   url?: string;
   path?: string;
   branch?: string;
@@ -68,7 +68,7 @@ export interface ParsedSkill {
 
 /** Parsed source string — result of parseSource() */
 export interface ParsedSource {
-  type: 'git' | 'local';
+  type: 'git' | 'local' | 'well-known';
   url?: string;
   path?: string;
   ref?: string;
@@ -249,7 +249,7 @@ export interface LockCompositionSource {
 /** Local lock file entry for a skill */
 export interface LocalLockEntry {
   source: string;
-  sourceType: 'github' | 'node_modules' | 'local';
+  sourceType: 'github' | 'node_modules' | 'local' | 'well-known';
   computedHash: string;
   /** Relative path to the skill directory within the source (for multi-skill repos) */
   skillDir?: string;
