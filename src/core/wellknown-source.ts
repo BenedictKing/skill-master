@@ -339,13 +339,8 @@ async function readBodyWithLimit(response: Response): Promise<Uint8Array | null>
   } finally {
     reader.releaseLock();
   }
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return out;
+  // Buffer.concat 内部做一次性分配+拷贝，避免手动 out.set 的二次峰值
+  return new Uint8Array(Buffer.concat(chunks.map(c => Buffer.from(c.buffer, c.byteOffset, c.byteLength))));
 }
 
 function extractArchive(bytes: Uint8Array, artifactUrl: string, contentType: string): Map<string, WellKnownFileContent> {
