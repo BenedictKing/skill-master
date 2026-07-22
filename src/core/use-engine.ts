@@ -93,23 +93,32 @@ export async function materializeUseSkill(source: string, options: UseOptions = 
     }
   }
 
-  // 在来源中定位目标 skill 目录
-  const skillDir = await selectSkillDir(sourceDir, options.skill ?? parsed.skillFilter, options.fullDepth ?? false);
-  const parsedSkill = await readSkillMd(skillDir);
-  if (!parsedSkill) {
-    throw new Error(`Failed to parse SKILL.md in ${skillDir}`);
+  const isTemp = parsed.type !== 'local';
+  const cleanupDir = cloneRoot ?? (isTemp ? sourceDir : undefined);
+
+  try {
+    // 在来源中定位目标 skill 目录
+    const skillDir = await selectSkillDir(sourceDir, options.skill ?? parsed.skillFilter, options.fullDepth ?? false);
+    const parsedSkill = await readSkillMd(skillDir);
+    if (!parsedSkill) {
+      throw new Error(`Failed to parse SKILL.md in ${skillDir}`);
+    }
+
+    const skillMd = await readFile(join(skillDir, 'SKILL.md'), 'utf-8');
+    const hasSupportingFiles = countSupportFiles(skillDir) > 0;
+
+    return {
+      tempRoot: sourceDir,
+      cloneRoot,
+      skillDir,
+      skillMd,
+      hasSupportingFiles,
+    };
+  } catch (err) {
+    // 物化后定位/解析失败，清理已创建的临时目录
+    if (cleanupDir) await removePath(cleanupDir).catch(() => {});
+    throw err;
   }
-
-  const skillMd = await readFile(join(skillDir, 'SKILL.md'), 'utf-8');
-  const hasSupportingFiles = countSupportFiles(skillDir) > 0;
-
-  return {
-    tempRoot: sourceDir,
-    cloneRoot,
-    skillDir,
-    skillMd,
-    hasSupportingFiles,
-  };
 }
 
 /** git 来源：白名单先试 blob 快路径，失败回退 clone，再应用 subpath。 */
@@ -122,7 +131,11 @@ async function fetchGitSource(url: string, ref?: string, subpath?: string, skill
   const cloneDir = await cloneRepo(url, ref);
   if (subpath) {
     const sub = join(cloneDir, subpath);
-    if (existsSync(sub)) return { dir: sub, cloneRoot: cloneDir };
+    if (!existsSync(sub)) {
+      await removePath(cloneDir).catch(() => {});
+      throw new Error(`Subpath not found in repository: ${subpath}`);
+    }
+    return { dir: sub, cloneRoot: cloneDir };
   }
   return { dir: cloneDir };
 }

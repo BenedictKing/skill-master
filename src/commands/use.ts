@@ -22,6 +22,7 @@ export function parseUseFlags(args: string[]): { source: string | null; flags: U
       const eqIdx = arg.indexOf('=');
       const key = arg.slice(2, eqIdx);
       const val = arg.slice(eqIdx + 1);
+      if (!val) throw new Error(`Missing value for --${key}`);
       switch (key) {
         case 'skill': flags.skill = val; break;
         case 'agent': flags.agent = val; break;
@@ -38,15 +39,21 @@ export function parseUseFlags(args: string[]): { source: string | null; flags: U
         i++;
         break;
       case '-s':
-      case '--skill':
-        flags.skill = args[++i];
+      case '--skill': {
+        const val = args[++i];
+        if (!val || val.startsWith('-')) throw new Error(`Missing value for ${arg}`);
+        flags.skill = val;
         i++;
         break;
+      }
       case '-a':
-      case '--agent':
-        flags.agent = args[++i];
+      case '--agent': {
+        const val = args[++i];
+        if (!val || val.startsWith('-')) throw new Error(`Missing value for ${arg}`);
+        flags.agent = val;
         i++;
         break;
+      }
       case '--full-depth':
         flags.fullDepth = true;
         i++;

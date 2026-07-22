@@ -295,7 +295,18 @@ function safeParseSkill(content: string) {
 export async function fetchAllWellKnownSkills(url: string): Promise<WellKnownSkillPayload[]> {
   const candidate = await fetchIndexCandidate(url);
   if (!candidate) return [];
-  const results = await Promise.all(candidate.entries.map(fetchSkillByEntry));
+
+  // 限制总条目数，防止恶意 index 耗尽内存
+  const entries = candidate.entries.slice(0, MAX_LEGACY_FILES);
+  const results: (WellKnownSkillPayload | null)[] = [];
+
+  // 限制并发下载
+  for (let i = 0; i < entries.length; i += LEGACY_CONCURRENCY) {
+    const batch = entries.slice(i, i + LEGACY_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(fetchSkillByEntry));
+    results.push(...batchResults);
+  }
+
   return results.filter((s): s is WellKnownSkillPayload => s !== null);
 }
 

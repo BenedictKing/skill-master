@@ -180,7 +180,7 @@ describe('tryBlobMaterialize', () => {
     expect(existsSync(join(tempDir, 'skills/demo/helper.ts'))).toBe(true);
   });
 
-  it('keeps only SKILL.md for root-level skills', async () => {
+  it('falls back to clone for root-level skills', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.includes('/git/trees/')) {
         return jsonResponse({ sha: 's', tree: [{ path: 'SKILL.md', type: 'blob', sha: 'x' }] });
@@ -202,10 +202,8 @@ describe('tryBlobMaterialize', () => {
     }));
 
     const result = await tryBlobMaterialize('vercel-labs/agent-skills');
-    tempDir = result!.tempDir;
-    expect(existsSync(join(tempDir, 'SKILL.md'))).toBe(true);
-    expect(existsSync(join(tempDir, 'README.md'))).toBe(false);
-    expect(existsSync(join(tempDir, 'src/index.ts'))).toBe(false);
+    // 根级技能回退 clone，无法区分支撑文件与仓库噪声
+    expect(result).toBeNull();
   });
 
   it('returns null when any snapshot download fails', async () => {

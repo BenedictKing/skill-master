@@ -338,9 +338,10 @@ export async function tryBlobMaterialize(
           : skill.mdPath.slice(0, -(1 + 'SKILL.md'.length));
       const isRoot = folderPath === '';
 
-      const files = isRoot
-        ? download!.files.filter(f => f.path.toLowerCase() === 'skill.md')
-        : download!.files;
+      // 根级技能无法区分支撑文件与仓库噪声，回退 clone 保留完整文件结构
+      if (isRoot) return null;
+
+      const files = download!.files;
 
       // 统一放到 tempDir/<file.path>/ 下，保持与 clone 后磁盘布局一致。
       // file.path 来自网络响应，必须校验防路径穿越（../ 逃逸 tempDir）。
