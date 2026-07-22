@@ -265,6 +265,8 @@ export async function resolveUpdateSource(
       }
       // 发现不到 skill：回退 git clone（自托管 git 服务场景）
       sourceDir = await cloneRepo(parsed.url!);
+      // 回退 clone 成功后，后续按 git 来源处理（保留原始 URL 作为 registry source）
+      parsed = { ...parsed, type: 'git' };
     } catch (err) {
       return { ok: false, reason: `无法获取 well-known 来源：${(err as Error).message}`, hint };
     }

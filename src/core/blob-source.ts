@@ -9,7 +9,7 @@
  */
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
-import { createTempDir } from '../utils/fs-helpers.js';
+import { createTempDir, removePath } from '../utils/fs-helpers.js';
 import * as logger from '../utils/logger.js';
 
 // ─── 类型 ───
@@ -339,7 +339,10 @@ export async function tryBlobMaterialize(
       const isRoot = folderPath === '';
 
       // 根级技能无法区分支撑文件与仓库噪声，回退 clone 保留完整文件结构
-      if (isRoot) return null;
+      if (isRoot) {
+        await removePath(tempDir).catch(() => {});
+        return null;
+      }
 
       const files = download!.files;
 
@@ -357,6 +360,7 @@ export async function tryBlobMaterialize(
     }
   } catch (err) {
     logger.debug(`blob materialize failed: ${(err as Error).message}`);
+    await removePath(tempDir).catch(() => {});
     return null;
   }
 

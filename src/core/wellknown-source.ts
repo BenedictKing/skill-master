@@ -89,7 +89,12 @@ async function fetchIndexCandidate(baseUrl: string): Promise<IndexCandidate | nu
       try {
         const response = await fetch(indexUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
         if (!response.ok) continue;
-        const raw = (await response.json()) as unknown;
+        // 限制 index 响应大小
+        const cl = Number(response.headers.get('content-length') ?? 0);
+        if (cl > MAX_LEGACY_FILE_BYTES) continue;
+        const buf = await readBodyWithLimit(response);
+        if (!buf) continue;
+        const raw = JSON.parse(new TextDecoder().decode(buf)) as unknown;
         const entries = normalizeIndex(raw, indexUrl);
         if (entries && entries.length > 0) {
           return { entries, indexUrl };
@@ -202,7 +207,13 @@ async function fetchLegacySkill(entry: Extract<NormalizedWellKnownEntry, { versi
     const skillBase = `${entry.skillBaseUrl.replace(/\/$/, '')}/${entry.name}`;
     const mdResponse = await fetch(`${skillBase}/SKILL.md`, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
     if (!mdResponse.ok) return null;
-    const content = await mdResponse.text();
+
+    // 流式读取，限制单个元数据响应大小
+    const cl = Number(mdResponse.headers.get('content-length') ?? 0);
+    if (cl > MAX_LEGACY_FILE_BYTES) return null;
+    const buf = await readBodyWithLimit(mdResponse);
+    if (!buf) return null;
+    const content = new TextDecoder().decode(buf);
 
     const parsed = safeParseSkill(content);
     if (!parsed) return null;

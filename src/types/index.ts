@@ -23,6 +23,7 @@ export type CandidateProvider =
   | 'plugin-manifest'
   | 'registry'
   | 'gh-skill'
+  | 'well-known'
   | 'vercel';
 
 export type CandidateRiskLevel = 'low' | 'medium' | 'high';

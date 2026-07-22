@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { cloneRepo, parseSource } from '../../core/git-source.js';
 import { findAllSkillDirectories, findAllSkillDirectoriesWithPlugins, readSkillMd } from '../../core/skill-parser.js';
+import { fetchAllWellKnownSkills } from '../../core/wellknown-source.js';
 import { envKeysFromDir, normalizeCandidate } from '../normalize.js';
 import type { ParsedSource, SkillCandidate } from '../../types/index.js';
 
@@ -55,6 +56,25 @@ export async function discoverFromSource(source: string, fullDepth = false): Pro
   const parsed = parseSource(source);
   if (parsed.type === 'local') {
     return discoverFromLocalPath(parsed.path!, fullDepth, source, parsed);
+  }
+
+  // well-known 端点：先尝试 well-known 发现，失败回退 git clone
+  if (parsed.type === 'well-known') {
+    try {
+      const skills = await fetchAllWellKnownSkills(parsed.url!);
+      if (skills.length > 0) {
+        return skills.map(s => normalizeCandidate({
+          provider: 'well-known',
+          source,
+          installHint: source,
+          path: s.name,
+          frontmatter: { name: s.name, description: s.installName ?? s.name },
+          envKeys: [],
+          parsedSource: parsed,
+          warnings: ['Metadata from well-known discovery endpoint'],
+        }));
+      }
+    } catch { /* fall through to git clone */ }
   }
 
   return discoverRemoteGitSource(source, parsed);
