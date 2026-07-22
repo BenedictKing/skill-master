@@ -78,6 +78,17 @@ describe('isAgentOrCIEnv', () => {
     expect(isAgentOrCIEnv(cleanEnv({ GITHUB_ACTIONS: 'true' }))).toBe(true);
   });
 
+  it('does NOT treat explicit false/0 CI values as CI', () => {
+    expect(isAgentOrCIEnv(cleanEnv({ CI: 'false' }))).toBe(false);
+    expect(isAgentOrCIEnv(cleanEnv({ CI: '0' }))).toBe(false);
+    expect(isAgentOrCIEnv(cleanEnv({ GITHUB_ACTIONS: 'false' }))).toBe(false);
+  });
+
+  it('does NOT treat explicit false agent signal as agent', () => {
+    expect(detectAgentEnv(cleanEnv({ CLAUDECODE: 'false' })).isAgent).toBe(false);
+    expect(detectAgentEnv(cleanEnv({ CURSOR_AGENT: '0' })).isAgent).toBe(false);
+  });
+
   it('is false in a clean env regardless of TTY', () => {
     // 与 isNonInteractiveEnv 的区别：不看 TTY，干净环境一律 false
     expect(isAgentOrCIEnv(cleanEnv())).toBe(false);

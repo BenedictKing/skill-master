@@ -327,6 +327,30 @@ describe('fetchAllWellKnownSkills', () => {
     }));
     expect(await fetchAllWellKnownSkills('https://example.com')).toHaveLength(0);
   });
+
+  it('rejects a tar.gz decompression bomb (output exceeds limit)', async () => {
+    // 构造高压缩比 tar.gz：解压后远超 MAX_ARCHIVE_UNPACKED_BYTES(50MB)
+    // 用大量重复内容，压缩后很小但解压巨大
+    const bigContent = 'A'.repeat(60 * 1024 * 1024); // 60MB 重复内容
+    const tar = buildTar([{ path: 'SKILL.md', content: skillMd('bomb') }, { path: 'big.txt', content: bigContent }]);
+    const tgz = gzipSync(Buffer.from(tar));
+    // 压缩后应远小于 60MB
+    expect(tgz.length).toBeLessThan(60 * 1024 * 1024);
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/.well-known/agent-skills/index.json')) {
+        return jsonResponse({
+          $schema: SCHEMA_V2,
+          skills: [{ name: 'bomb', description: 'd', type: 'archive', url: './b.tar.gz', digest: sha256(new Uint8Array(tgz)) }],
+        });
+      }
+      if (url.endsWith('/b.tar.gz')) {
+        return new Response(new Uint8Array(tgz), { status: 200, headers: { 'content-type': 'application/gzip' } });
+      }
+      return jsonResponse({}, 404);
+    }));
+    // 解压超 maxOutputLength 抛错 → skill 被过滤，且不 OOM
+    expect(await fetchAllWellKnownSkills('https://example.com')).toHaveLength(0);
+  });
 });
 
 describe('materialize', () => {

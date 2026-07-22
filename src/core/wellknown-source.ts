@@ -375,7 +375,8 @@ function addArchiveFile(files: Map<string, WellKnownFileContent>, path: string, 
 }
 
 function extractTarGz(bytes: Uint8Array): Map<string, WellKnownFileContent> {
-  const tar = gunzipSync(Buffer.from(bytes));
+  // maxOutputLength 限制解压输出，防止高压缩比归档（压缩炸弹）OOM
+  const tar = gunzipSync(Buffer.from(bytes), { maxOutputLength: MAX_ARCHIVE_UNPACKED_BYTES });
   const files = new Map<string, WellKnownFileContent>();
   const total = { bytes: 0 };
   let offset = 0;
@@ -434,6 +435,12 @@ function extractZip(bytes: Uint8Array): Map<string, WellKnownFileContent> {
     const fileName = new TextDecoder(flags & 0x800 ? 'utf-8' : undefined).decode(buffer.subarray(nameStart, nameStart + fileNameLength));
     offset = nameStart + fileNameLength + extraLength + commentLength;
 
+    // 解压前按声明大小累计预检，超限直接拒绝，避免逐个分配逼近上限
+    if (!fileName.endsWith('/')) {
+      total.bytes += uncompressedSize;
+      if (total.bytes > MAX_ARCHIVE_UNPACKED_BYTES) throw new Error('Archive exceeds maximum unpacked size');
+    }
+
     if (fileName.endsWith('/')) continue;
     if (flags & 0x1) throw new Error('Encrypted zip entries are not supported');
     const fileType = (externalAttributes >>> 16) & 0o170000;
@@ -445,9 +452,10 @@ function extractZip(bytes: Uint8Array): Map<string, WellKnownFileContent> {
     const dataStart = localHeaderOffset + 30 + localFileNameLength + localExtraLength;
     const compressed = buffer.subarray(dataStart, dataStart + compressedSize);
 
+    // 单个 entry 解压上限 = 其声明的解压大小，超限（压缩炸弹）即抛错
     let content: Buffer;
     if (method === 0) content = compressed;
-    else if (method === 8) content = inflateRawSync(compressed);
+    else if (method === 8) content = inflateRawSync(compressed, { maxOutputLength: uncompressedSize });
     else throw new Error(`Unsupported zip compression method: ${method}`);
     if (content.byteLength !== uncompressedSize) throw new Error('Zip entry size mismatch');
 

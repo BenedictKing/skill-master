@@ -15,6 +15,13 @@ export interface AgentEnvResult {
   agentName?: string;
 }
 
+/** 判断环境变量是否为「真值」信号（排除 "false"/"0"/"no"/"" 等显式假值）。 */
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) return false;
+  const v = value.trim().toLowerCase();
+  return v !== '' && v !== 'false' && v !== '0' && v !== 'no';
+}
+
 /**
  * 强信号环境变量 → 检测名。存在即判定为对应 agent。
  *
@@ -39,7 +46,7 @@ const STRONG_SIGNALS: ReadonlyArray<readonly [string, string]> = [
  * 仅当存在 CURSOR_AGENT 或 CURSOR_EXTENSION_HOST_ROLE === 'agent-exec' 才算。
  */
 function isCursorAgent(env: NodeJS.ProcessEnv): boolean {
-  return Boolean(env.CURSOR_AGENT) || env.CURSOR_EXTENSION_HOST_ROLE === 'agent-exec';
+  return isTruthyEnv(env.CURSOR_AGENT) || env.CURSOR_EXTENSION_HOST_ROLE === 'agent-exec';
 }
 
 /** 进程内缓存，避免重复检测。 */
@@ -59,7 +66,7 @@ export function detectAgentEnv(env: NodeJS.ProcessEnv = process.env): AgentEnvRe
   }
 
   for (const [varName, agentName] of STRONG_SIGNALS) {
-    if (env[varName]) {
+    if (isTruthyEnv(env[varName])) {
       const result: AgentEnvResult = { isAgent: true, agentName };
       if (env === process.env) cached = result;
       return result;
@@ -73,7 +80,7 @@ export function detectAgentEnv(env: NodeJS.ProcessEnv = process.env): AgentEnvRe
 
 /** 是否在 CI 环境（通用信号）。 */
 function isCIEnv(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.CI) || Boolean(env.GITHUB_ACTIONS) || Boolean(env.CONTINUOUS_INTEGRATION);
+  return isTruthyEnv(env.CI) || isTruthyEnv(env.GITHUB_ACTIONS) || isTruthyEnv(env.CONTINUOUS_INTEGRATION);
 }
 
 /**

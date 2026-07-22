@@ -366,6 +366,9 @@ export async function add(args: string[]): Promise<void> {
 
   // Resolve source directory
   let sourceDir: string;
+  // 实际来源类型：well-known 发现失败回退 clone 时归位为 git，
+  // 避免 registry/lock 把自托管 git 仓库错误标记为 well-known（restore/check 会失效）
+  let resolvedType: 'git' | 'local' | 'well-known' = parsed.type;
 
   if (parsed.type === 'git') {
     logger.step(1, 9, 'Fetching skill source...');
@@ -386,6 +389,7 @@ export async function add(args: string[]): Promise<void> {
       logger.info('Using well-known skills discovery');
     } else {
       sourceDir = await cloneRepo(parsed.url!);
+      resolvedType = 'git';
     }
   } else {
     sourceDir = resolve(commandCwd, parsed.path!);
@@ -471,11 +475,12 @@ export async function add(args: string[]): Promise<void> {
   try {
     for (const { path: dir, pluginName } of targetDirs) {
       // 保留原始输入作为展示/匹配标签（SSH 安装保留 git@/ssh:// 原始 URL）
-      const lockSource = parsed.type === 'git' ? getLockSource(parsed.url!, effectiveSource) : undefined;
-      // For git/well-known sources, preserve the URL; for local, use the actual path
-      const installSource: SkillSource = parsed.type === 'git'
+      const lockSource = resolvedType === 'git' ? getLockSource(parsed.url!, effectiveSource) : undefined;
+      // For git/well-known sources, preserve the URL; for local, use the actual path.
+      // 依据 resolvedType（回退 clone 时为 git），保证 registry/lock 记录真实来源
+      const installSource: SkillSource = resolvedType === 'git'
         ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir, displaySource: lockSource }
-        : parsed.type === 'well-known'
+        : resolvedType === 'well-known'
           ? { type: 'well-known', url: parsed.url!, localPath: dir, displaySource: parsed.url! }
           : { type: 'local', path: dir };
       const concreteAgents = agents.filter((agent): agent is AgentPlatform => agent !== undefined);
@@ -503,14 +508,14 @@ export async function add(args: string[]): Promise<void> {
       if (!flags.global) {
         // Record relative skill dir path for multi-skill source repos
         const skillDir = relative(sourceDir, dir);
-        const lockEntrySource = parsed.type === 'git'
+        const lockEntrySource = resolvedType === 'git'
           ? lockSource!
-          : parsed.type === 'well-known'
+          : resolvedType === 'well-known'
             ? parsed.url!
             : formatProjectRelativeSource(cwd, sourceDir);
-        const lockSourceType = parsed.type === 'git'
+        const lockSourceType = resolvedType === 'git'
           ? 'github'
-          : parsed.type === 'well-known'
+          : resolvedType === 'well-known'
             ? 'well-known'
             : 'local';
         await addSkillToLocalLock(results[0].skillName, {
