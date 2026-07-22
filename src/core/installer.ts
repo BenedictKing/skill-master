@@ -196,7 +196,8 @@ async function installPreparedTarget(
     global: target.global,
   };
   const entry: RegistryEntry = {
-    source: context.source.type === 'git' ? context.source.url! : context.source.path!,
+    source: context.source.displaySource
+      ?? (context.source.type === 'git' ? context.source.url! : context.source.path!),
     version: context.version,
     installed_at: now,
     updated_at: now,

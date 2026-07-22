@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { installSkill, isPathSafe, sanitizeName } from '../core/installer.js';
-import { cloneRepo, parseSource } from '../core/git-source.js';
+import { cloneRepo, isSameGitRepo, parseSource } from '../core/git-source.js';
 import { readLocalLock } from '../core/local-lock.js';
 import { resolveProjectCwd } from '../core/project-root.js';
 import { getRegistryEntry } from '../core/registry.js';
@@ -182,7 +182,8 @@ function isLockSourceCompatible(lockEntry: LocalLockEntry, entrySource: string, 
     }
 
     if (parsedLock.type === 'git' && parsedEntry.type === 'git') {
-      return parsedLock.url === parsedEntry.url;
+      // SSH 与 HTTPS 视为同一仓库，避免 SSH 安装被误判为来源不兼容
+      return isSameGitRepo(parsedLock.url!, parsedEntry.url!);
     }
 
     const lockPath = resolveLocalSourcePath(cwd, parsedLock.path!);

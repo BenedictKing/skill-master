@@ -38,6 +38,11 @@ export interface SkillSource {
   branch?: string;
   /** Local path to use for installation (when type='git', this is the cloned temp dir) */
   localPath?: string;
+  /**
+   * 原始来源标签，用于 registry 记录与更新匹配。
+   * SSH 安装时保留 git@/ssh:// 原始 URL，避免归一化后破坏私钥认证。
+   */
+  displaySource?: string;
 }
 
 /** SKILL.md frontmatter fields */

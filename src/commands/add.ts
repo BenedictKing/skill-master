@@ -1,5 +1,5 @@
 import { installSkill, installSkillToAgents } from '../core/installer.js';
-import { cloneRepo, parseSource } from '../core/git-source.js';
+import { cloneRepo, getLockSource, parseSource } from '../core/git-source.js';
 import { confirmProjectRoot, formatProjectRelativeSource, resolveProjectRoot } from '../core/project-root.js';
 import { findAllSkillDirectoriesWithPlugins, readSkillMd, type DiscoveredSkill } from '../core/skill-parser.js';
 import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
@@ -422,9 +422,11 @@ export async function add(args: string[]): Promise<void> {
 
   try {
     for (const { path: dir, pluginName } of targetDirs) {
+      // 保留原始输入作为展示/匹配标签（SSH 安装保留 git@/ssh:// 原始 URL）
+      const lockSource = parsed.type === 'git' ? getLockSource(parsed.url!, effectiveSource) : undefined;
       // For git sources, preserve the URL; for local, use the actual path
       const installSource: SkillSource = parsed.type === 'git'
-        ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir }
+        ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir, displaySource: lockSource }
         : { type: 'local', path: dir };
       const concreteAgents = agents.filter((agent): agent is AgentPlatform => agent !== undefined);
       const results = concreteAgents.length === agents.length
@@ -452,7 +454,7 @@ export async function add(args: string[]): Promise<void> {
         // Record relative skill dir path for multi-skill source repos
         const skillDir = relative(sourceDir, dir);
         await addSkillToLocalLock(results[0].skillName, {
-          source: parsed.type === 'git' ? effectiveSource : formatProjectRelativeSource(cwd, sourceDir),
+          source: parsed.type === 'git' ? lockSource! : formatProjectRelativeSource(cwd, sourceDir),
           sourceType: parsed.type === 'git' ? 'github' : 'local',
           computedHash: await computeSkillFolderHash(results[0].canonicalPath),
           ...(skillDir && skillDir !== '.' ? { skillDir } : {}),

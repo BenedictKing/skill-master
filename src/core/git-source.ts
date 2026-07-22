@@ -54,7 +54,11 @@ export function parseSource(source: string): ParsedSource {
 
   const { source: normalizedSource, skillFilter: urlSkillFilter } = splitTrailingSkillFilter(source);
 
-  if (normalizedSource.startsWith('git@') || normalizedSource.startsWith('git://')) {
+  if (
+    normalizedSource.startsWith('git@') ||
+    normalizedSource.startsWith('git://') ||
+    normalizedSource.startsWith('ssh://')
+  ) {
     return { type: 'git', url: normalizedSource, skillFilter: urlSkillFilter };
   }
 
@@ -182,6 +186,73 @@ export function parseGitUrl(url: string): { owner: string; repo: string; branch?
   }
 
   throw new GitCloneError(url, 'Unable to parse GitHub URL');
+}
+
+/**
+ * 归一化任意 git URL 为 {host, ownerRepo}，用于跨协议等价比较。
+ * 支持：git@host:o/r、ssh://git@host/o/r、https://host/o/r、git://host/o/r、owner/repo shorthand。
+ * 返回 null 表示无法识别为 git 仓库地址。
+ */
+export function parseGitIdentity(url: string): { host: string; ownerRepo: string } | null {
+  const trimmed = url.trim().replace(/\.git$/, '').replace(/\/$/, '');
+
+  // SCP-like SSH：git@host:owner/repo
+  const scp = trimmed.match(/^git@([^:]+):(.+)$/);
+  if (scp) {
+    return { host: scp[1].toLowerCase(), ownerRepo: scp[2].toLowerCase() };
+  }
+
+  // URL 形式：ssh://git@host/owner/repo、https://host/owner/repo、git://host/owner/repo
+  if (/^(https?|ssh|git):\/\//.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      const path = u.pathname.replace(/^\//, '');
+      if (!path) return null;
+      return { host: u.hostname.toLowerCase(), ownerRepo: path.toLowerCase() };
+    } catch {
+      return null;
+    }
+  }
+
+  // shorthand：owner/repo（无 host，默认 github.com）
+  if (/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(trimmed)) {
+    return { host: 'github.com', ownerRepo: trimmed.toLowerCase() };
+  }
+
+  return null;
+}
+
+/**
+ * 判断两个 git 地址是否指向同一仓库。
+ * SSH（git@/ssh://）与 HTTPS 视为等价，仅比较 host + owner/repo。
+ */
+export function isSameGitRepo(a: string, b: string): boolean {
+  const ia = parseGitIdentity(a);
+  const ib = parseGitIdentity(b);
+  if (!ia || !ib) return false;
+  return ia.host === ib.host && ia.ownerRepo === ib.ownerRepo;
+}
+
+/**
+ * 决定写入 lock/registry 的 source 值。
+ * SSH（git@/ssh://）或非 GitHub 的 HTTP(S) 保留原始 URL，避免归一化后破坏私钥认证；
+ * GitHub HTTPS 使用归一化形式（owner/repo 或原始 shorthand），保持简洁可读。
+ */
+export function getLockSource(parsedUrl: string, rawInput: string): string {
+  const isSSH = parsedUrl.startsWith('git@') || parsedUrl.startsWith('ssh://');
+  if (isSSH) {
+    return parsedUrl;
+  }
+  if (parsedUrl.startsWith('http://') || parsedUrl.startsWith('https://')) {
+    try {
+      if (new URL(parsedUrl).hostname !== 'github.com') {
+        return parsedUrl;
+      }
+    } catch {
+      return rawInput;
+    }
+  }
+  return rawInput;
 }
 
 /** Clone a git repository to a temporary directory */
