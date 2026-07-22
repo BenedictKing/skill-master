@@ -446,6 +446,12 @@ function extractZip(bytes: Uint8Array): Map<string, WellKnownFileContent> {
     const dataStart = localHeaderOffset + 30 + localFileNameLength + localExtraLength;
     const compressed = buffer.subarray(dataStart, dataStart + compressedSize);
 
+    // 解压前预检累计大小，避免高压缩比条目在 addArchiveFile 计数前分配超限内存。
+    // 只校验不累计；实际计数仍由 addArchiveFile 统一完成（避免重复累计）。
+    if (uncompressedSize > 0 && total.bytes + uncompressedSize > MAX_ARCHIVE_UNPACKED_BYTES) {
+      throw new Error('Archive exceeds maximum unpacked size');
+    }
+
     // 空文件（含 deflate 压缩的空条目）直接给空内容；
     // 避免 inflateRawSync 对 maxOutputLength:0 抛 ERR_OUT_OF_RANGE
     let content: Buffer;
