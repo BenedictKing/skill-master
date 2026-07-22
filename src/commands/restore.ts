@@ -1,6 +1,7 @@
 import { installSkill, sanitizeName } from '../core/installer.js';
 import { cloneRepo, parseSource } from '../core/git-source.js';
 import { readLocalLock, addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
+import { fetchAllWellKnownSkills, materializeWellKnownSkill } from '../core/wellknown-source.js';
 import { resolveProjectCwd } from '../core/project-root.js';
 import { discoverNodeModulesSkills, readSkillMd } from '../core/skill-parser.js';
 import * as logger from '../utils/logger.js';
@@ -57,12 +58,14 @@ export async function restore(args: string[]): Promise<void> {
   const github: Array<[string, typeof lock.skills[string]]> = [];
   const nodeModules: Array<[string, typeof lock.skills[string]]> = [];
   const local: Array<[string, typeof lock.skills[string]]> = [];
+  const wellKnown: Array<[string, typeof lock.skills[string]]> = [];
 
   for (const [name, entry] of entries) {
     switch (entry.sourceType) {
       case 'github': github.push([name, entry]); break;
       case 'node_modules': nodeModules.push([name, entry]); break;
       case 'local': local.push([name, entry]); break;
+      case 'well-known': wellKnown.push([name, entry]); break;
     }
   }
 
@@ -136,6 +139,38 @@ export async function restore(args: string[]): Promise<void> {
         sourceType: 'github',
         computedHash: await computeSkillFolderHash(result.canonicalPath),
         ...(entry.skillDir ? { skillDir: entry.skillDir } : {}),
+        ...(entry.pluginName ? { pluginName: entry.pluginName } : {}),
+      }, cwd);
+      installed++;
+    } catch (err) {
+      logger.error(`Failed to restore "${name}": ${(err as Error).message}`);
+      failed++;
+    }
+  }
+
+  // Restore well-known skills: re-fetch from endpoint and materialize
+  for (const [name, entry] of wellKnown) {
+    try {
+      const payloads = await fetchAllWellKnownSkills(entry.source);
+      // 定位目标 skill：优先 installName 匹配，其次 skillDir，最后单结果兜底
+      const target = payloads.find(p => p.installName === name || p.name === name) ??
+        (payloads.length === 1 ? payloads[0] : undefined);
+      if (!target) {
+        logger.warn(`Skill "${name}" not found at well-known endpoint: ${entry.source}`);
+        failed++;
+        continue;
+      }
+      const sourceDir = await materializeWellKnownSkill(target);
+      const result = await installSkill({
+        source: { type: 'well-known', url: entry.source, localPath: sourceDir, displaySource: entry.source },
+        cwd,
+        global: false,
+        yes: true,
+      });
+      await addSkillToLocalLock(result.skillName, {
+        source: entry.source,
+        sourceType: 'well-known',
+        computedHash: await computeSkillFolderHash(result.canonicalPath),
         ...(entry.pluginName ? { pluginName: entry.pluginName } : {}),
       }, cwd);
       installed++;

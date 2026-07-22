@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { installSkill, isPathSafe, sanitizeName } from '../core/installer.js';
 import { cloneRepo, isSameGitRepo, parseSource } from '../core/git-source.js';
+import { fetchAllWellKnownSkills, materializeWellKnownSkill } from '../core/wellknown-source.js';
 import { readLocalLock } from '../core/local-lock.js';
 import { resolveProjectCwd } from '../core/project-root.js';
 import { getRegistryEntry } from '../core/registry.js';
@@ -153,6 +154,9 @@ function isPathWithin(basePath: string, targetPath: string): boolean {
 }
 
 function parseLockSource(lockEntry: LocalLockEntry): ParsedSource {
+  if (lockEntry.sourceType === 'well-known') {
+    return { type: 'well-known', url: lockEntry.source };
+  }
   if (lockEntry.sourceType !== 'github') {
     return { type: 'local', path: lockEntry.source };
   }
@@ -242,6 +246,25 @@ export async function resolveUpdateSource(
         reason: `无法获取远程来源：${(err as Error).message}`,
         hint,
       };
+    }
+  } else if (parsed.type === 'well-known') {
+    // well-known：重新抓取并物化，定位到目标 skill
+    try {
+      const payloads = await fetchAllWellKnownSkills(parsed.url!);
+      const target = payloads.find(p => p.installName === skillName || p.name === skillName) ??
+        (payloads.length === 1 ? payloads[0] : undefined);
+      if (!target) {
+        return { ok: false, reason: `well-known 端点未找到技能 "${skillName}"`, hint };
+      }
+      sourceDir = await materializeWellKnownSkill(target);
+      return {
+        ok: true,
+        source: { type: 'well-known', url: parsed.url!, localPath: sourceDir, displaySource: parsed.url! },
+        sourceLabel,
+        usedLock: useLock,
+      };
+    } catch (err) {
+      return { ok: false, reason: `无法获取 well-known 来源：${(err as Error).message}`, hint };
     }
   } else {
     if (!useLock && options.fallbackCwd && !isAbsolute(parsed.path!)) {

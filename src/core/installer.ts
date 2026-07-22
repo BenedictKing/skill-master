@@ -51,6 +51,14 @@ async function resolveSourceDir(source: SkillSource): Promise<string> {
     return source.localPath ?? await cloneRepo(source.url!, source.branch);
   }
 
+  // well-known 来源在 add/use 流程中已物化到 localPath，直接使用
+  if (source.type === 'well-known') {
+    if (!source.localPath || !existsSync(source.localPath)) {
+      throw new SkillNotFoundError(source.localPath ?? source.url ?? 'well-known');
+    }
+    return source.localPath;
+  }
+
   if (source.type === 'local') {
     const sourceDir = source.path!;
     if (!existsSync(sourceDir)) {

@@ -91,8 +91,9 @@ export function parseSource(source: string): ParsedSource {
       return { type: 'git', url: normalizedSource, skillFilter: urlSkillFilter };
     }
 
-    // Other https URLs — treat as git
-    return { type: 'git', url: normalizedSource, skillFilter: urlSkillFilter };
+    // 其他 http(s) URL：可能是 well-known skills 端点，也可能是自建 git 服务。
+    // 标记为 well-known，由调用方先尝试 well-known 发现、失败回退 git clone。
+    return { type: 'well-known', url: normalizedSource, skillFilter: urlSkillFilter };
   }
 
   // Contains github.com or gitlab.com without protocol

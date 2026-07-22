@@ -1,6 +1,7 @@
 import { installSkill, installSkillToAgents } from '../core/installer.js';
 import { cloneRepo, getLockSource, parseSource } from '../core/git-source.js';
 import { tryBlobMaterialize } from '../core/blob-source.js';
+import { fetchAllWellKnownSkills, materializeWellKnownSkills } from '../core/wellknown-source.js';
 import { confirmProjectRoot, formatProjectRelativeSource, resolveProjectRoot } from '../core/project-root.js';
 import { findAllSkillDirectoriesWithPlugins, readSkillMd, type DiscoveredSkill } from '../core/skill-parser.js';
 import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
@@ -323,6 +324,16 @@ async function fetchGitSourceDir(parsed: ParsedSource): Promise<string> {
   return cloneRepo(parsed.url!, parsed.ref);
 }
 
+/**
+ * 尝试 well-known skills 发现：抓取 index、拉取全部 skill、物化到临时根目录。
+ * 返回临时根路径；无有效 skill 时返回 null（调用方回退 git clone）。
+ */
+async function fetchWellKnownSourceDir(url: string): Promise<string | null> {
+  const payloads = await fetchAllWellKnownSkills(url);
+  if (payloads.length === 0) return null;
+  return materializeWellKnownSkills(payloads);
+}
+
 /** add command — install skills (compatible with `npx skills add`) */
 export async function add(args: string[]): Promise<void> {
   if (args.length === 0) {
@@ -365,6 +376,16 @@ export async function add(args: string[]): Promise<void> {
       if (existsSync(sub)) {
         sourceDir = sub;
       }
+    }
+  } else if (parsed.type === 'well-known') {
+    logger.step(1, 9, 'Fetching skill source...');
+    // 先试 well-known 发现（物化到临时根），失败回退 git clone（自建 git 服务场景）
+    const wellKnown = await fetchWellKnownSourceDir(parsed.url!);
+    if (wellKnown) {
+      sourceDir = wellKnown;
+      logger.info('Using well-known skills discovery');
+    } else {
+      sourceDir = await cloneRepo(parsed.url!);
     }
   } else {
     sourceDir = resolve(commandCwd, parsed.path!);
@@ -451,10 +472,12 @@ export async function add(args: string[]): Promise<void> {
     for (const { path: dir, pluginName } of targetDirs) {
       // 保留原始输入作为展示/匹配标签（SSH 安装保留 git@/ssh:// 原始 URL）
       const lockSource = parsed.type === 'git' ? getLockSource(parsed.url!, effectiveSource) : undefined;
-      // For git sources, preserve the URL; for local, use the actual path
+      // For git/well-known sources, preserve the URL; for local, use the actual path
       const installSource: SkillSource = parsed.type === 'git'
         ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir, displaySource: lockSource }
-        : { type: 'local', path: dir };
+        : parsed.type === 'well-known'
+          ? { type: 'well-known', url: parsed.url!, localPath: dir, displaySource: parsed.url! }
+          : { type: 'local', path: dir };
       const concreteAgents = agents.filter((agent): agent is AgentPlatform => agent !== undefined);
       const results = concreteAgents.length === agents.length
         ? await installSkillToAgents({
@@ -480,9 +503,19 @@ export async function add(args: string[]): Promise<void> {
       if (!flags.global) {
         // Record relative skill dir path for multi-skill source repos
         const skillDir = relative(sourceDir, dir);
+        const lockEntrySource = parsed.type === 'git'
+          ? lockSource!
+          : parsed.type === 'well-known'
+            ? parsed.url!
+            : formatProjectRelativeSource(cwd, sourceDir);
+        const lockSourceType = parsed.type === 'git'
+          ? 'github'
+          : parsed.type === 'well-known'
+            ? 'well-known'
+            : 'local';
         await addSkillToLocalLock(results[0].skillName, {
-          source: parsed.type === 'git' ? lockSource! : formatProjectRelativeSource(cwd, sourceDir),
-          sourceType: parsed.type === 'git' ? 'github' : 'local',
+          source: lockEntrySource,
+          sourceType: lockSourceType,
           computedHash: await computeSkillFolderHash(results[0].canonicalPath),
           ...(skillDir && skillDir !== '.' ? { skillDir } : {}),
           ...(pluginName ? { pluginName } : {}),
