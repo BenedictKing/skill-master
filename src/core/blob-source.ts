@@ -9,8 +9,18 @@
  */
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
+import { createHash } from 'node:crypto';
 import { createTempDir, removePath } from '../utils/fs-helpers.js';
 import * as logger from '../utils/logger.js';
+
+// ─── Git blob SHA1 校验 ───
+
+/** 计算 Git blob SHA1：sha1("blob <size>\0<content>") */
+function gitBlobSha1(content: string): string {
+  const buf = Buffer.from(content, 'utf-8');
+  const header = `blob ${buf.byteLength}\0`;
+  return createHash('sha1').update(header).update(buf).digest('hex');
+}
 
 // ─── 类型 ───
 
@@ -236,7 +246,12 @@ async function fetchSkillDownload(ownerRepo: string, slug: string): Promise<Skil
     const url = `${DOWNLOAD_BASE_URL}/api/download/${encodeURIComponent(owner!)}/${encodeURIComponent(repo!)}/${encodeURIComponent(slug)}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
     if (!response.ok) return null;
-    return (await response.json()) as SkillDownloadResponse;
+    const data = (await response.json()) as unknown;
+    // 运行时校验响应结构，无效响应视为快路径失败
+    if (!data || typeof data !== 'object' || !Array.isArray((data as any).files)) return null;
+    const files = (data as any).files as unknown[];
+    if (!files.every((f: any) => f && typeof f.path === 'string' && typeof f.contents === 'string')) return null;
+    return data as SkillDownloadResponse;
   } catch {
     return null;
   }
@@ -340,10 +355,15 @@ export async function tryBlobMaterialize(
       logger.warn('blob snapshot SKILL.md content mismatch, falling back to clone');
       return null;
     }
-    // 所有下载文件路径必须存在于 GitHub tree 中
+    // 所有下载文件路径必须存在于 GitHub tree 中，且内容 SHA1 一致
     for (const file of download!.files) {
-      if (!treePaths.has(file.path)) {
+      const expectedSha = treePaths.get(file.path);
+      if (!expectedSha) {
         logger.warn(`blob snapshot contains unknown file not in GitHub tree: ${file.path}, falling back to clone`);
+        return null;
+      }
+      if (gitBlobSha1(file.contents) !== expectedSha) {
+        logger.warn(`blob snapshot file SHA mismatch: ${file.path}, falling back to clone`);
         return null;
       }
     }

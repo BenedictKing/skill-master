@@ -157,8 +157,8 @@ describe('tryBlobMaterialize', () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.includes('/git/trees/')) {
         return jsonResponse({ sha: 's', tree: [
-          { path: 'skills/demo/SKILL.md', type: 'blob', sha: 'x' },
-          { path: 'skills/demo/helper.ts', type: 'blob', sha: 'y' },
+          { path: 'skills/demo/SKILL.md', type: 'blob', sha: '812b23721dccfa653cbac2e5300bb63723b5b32f' },
+          { path: 'skills/demo/helper.ts', type: 'blob', sha: '693da49fc40be722cea3b9f736d6b4ee4f879027' },
         ] });
       }
       if (url.includes('raw.githubusercontent.com')) {
@@ -186,7 +186,7 @@ describe('tryBlobMaterialize', () => {
   it('falls back to clone for root-level skills', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.includes('/git/trees/')) {
-        return jsonResponse({ sha: 's', tree: [{ path: 'SKILL.md', type: 'blob', sha: 'x' }] });
+        return jsonResponse({ sha: 's', tree: [{ path: 'SKILL.md', type: 'blob', sha: '47dcfb605b17781a8882a79ba576c54b94dc2521' }] });
       }
       if (url.includes('raw.githubusercontent.com')) {
         return new Response('---\nname: root\ndescription: d\n---\n# root', { status: 200 });
