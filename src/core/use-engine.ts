@@ -65,6 +65,7 @@ export function buildUsePrompt(input: {
 
 export interface MaterializedUseSkill {
   tempRoot: string;
+  cloneRoot?: string; // 当 subpath 存在时为完整 clone 根目录，用于正确清理
   skillDir: string;
   skillMd: string;
   hasSupportingFiles: boolean;
@@ -77,9 +78,12 @@ export interface MaterializedUseSkill {
 export async function materializeUseSkill(source: string, options: UseOptions = {}): Promise<MaterializedUseSkill> {
   const parsed = parseSource(source);
   let sourceDir: string;
+  let cloneRoot: string | undefined;
 
   if (parsed.type === 'git') {
-    sourceDir = await fetchGitSource(parsed.url!, parsed.ref, parsed.subpath, parsed.skillFilter ?? options.skill);
+    const result = await fetchGitSource(parsed.url!, parsed.ref, parsed.subpath, parsed.skillFilter ?? options.skill);
+    sourceDir = result.dir;
+    cloneRoot = result.cloneRoot;
   } else if (parsed.type === 'well-known') {
     sourceDir = await fetchWellKnownSource(parsed.url!);
   } else {
@@ -101,6 +105,7 @@ export async function materializeUseSkill(source: string, options: UseOptions = 
 
   return {
     tempRoot: sourceDir,
+    cloneRoot,
     skillDir,
     skillMd,
     hasSupportingFiles,
@@ -108,18 +113,18 @@ export async function materializeUseSkill(source: string, options: UseOptions = 
 }
 
 /** git 来源：白名单先试 blob 快路径，失败回退 clone，再应用 subpath。 */
-async function fetchGitSource(url: string, ref?: string, subpath?: string, skillFilter?: string): Promise<string> {
+async function fetchGitSource(url: string, ref?: string, subpath?: string, skillFilter?: string): Promise<{ dir: string; cloneRoot?: string }> {
   const ownerRepo = url.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
   if (ownerRepo) {
     const blob = await tryBlobMaterialize(`${ownerRepo[1]}/${ownerRepo[2]}`, { subpath, skillFilter, ref });
-    if (blob) return blob.tempDir;
+    if (blob) return { dir: blob.tempDir };
   }
-  let dir = await cloneRepo(url, ref);
+  const cloneDir = await cloneRepo(url, ref);
   if (subpath) {
-    const sub = join(dir, subpath);
-    if (existsSync(sub)) dir = sub;
+    const sub = join(cloneDir, subpath);
+    if (existsSync(sub)) return { dir: sub, cloneRoot: cloneDir };
   }
-  return dir;
+  return { dir: cloneDir };
 }
 
 /** well-known 来源：抓取全部并物化到临时根；发现不到 skill 时回退 git clone（自托管 git 服务场景）。 */
@@ -203,10 +208,12 @@ export async function runUse(source: string, options: UseOptions = {}): Promise<
   try {
     materialized = await materializeUseSkill(source, options);
 
+    // stdout 模式 + 远程临时目录：支撑文件路径会在 finally 中被删除，标记为 false
+    // 本地技能路径不会被清理，可正常显示支撑文件提示
     const prompt = buildUsePrompt({
       skillMd: materialized.skillMd,
       supportDir: materialized.skillDir,
-      hasSupportingFiles: materialized.hasSupportingFiles,
+      hasSupportingFiles: options.agent || !isTempSource ? materialized.hasSupportingFiles : false,
     });
 
     if (options.agent) {
@@ -216,8 +223,10 @@ export async function runUse(source: string, options: UseOptions = {}): Promise<
     return 0;
   } finally {
     // 仅清理物化产生的临时目录（git/well-known 来源）；本地路径不删除
+    // 当存在 cloneRoot（subpath 场景）时，清理整个 clone 根目录
     if (isTempSource && materialized) {
-      await removePath(materialized.tempRoot).catch(() => {});
+      const cleanupDir = materialized.cloneRoot ?? materialized.tempRoot;
+      await removePath(cleanupDir).catch(() => {});
     }
   }
 }

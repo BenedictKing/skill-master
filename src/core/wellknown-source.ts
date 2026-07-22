@@ -21,6 +21,12 @@ const MAX_ARCHIVE_UNPACKED_BYTES = 50 * 1024 * 1024;
 const MAX_ARCHIVE_FILES = 1000;
 /** artifact 下载字节上限：略大于解压上限，给压缩包留余量，同时阻断超大响应 OOM。 */
 const MAX_ARTIFACT_BYTES = 100 * 1024 * 1024;
+/** legacy v1 单文件大小上限 */
+const MAX_LEGACY_FILE_BYTES = 10 * 1024 * 1024;
+/** legacy v1 支撑文件最大数量 */
+const MAX_LEGACY_FILES = 50;
+/** legacy v1 并发下载上限 */
+const LEGACY_CONCURRENCY = 5;
 const FETCH_TIMEOUT = 10_000;
 
 const WELL_KNOWN_PATHS = ['.well-known/agent-skills', '.well-known/skills'] as const;
@@ -203,13 +209,25 @@ async function fetchLegacySkill(entry: Extract<NormalizedWellKnownEntry, { versi
 
     const files = new Map<string, WellKnownFileContent>();
     files.set('SKILL.md', content);
-    const others = entry.files.filter(f => f.toLowerCase() !== 'skill.md');
-    await Promise.all(others.map(async filePath => {
-      try {
-        const r = await fetch(`${skillBase}/${filePath}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
-        if (r.ok) files.set(filePath, new Uint8Array(await r.arrayBuffer()));
-      } catch { /* 单文件失败容忍（legacy 行为） */ }
-    }));
+    const others = entry.files.filter(f => f.toLowerCase() !== 'skill.md').slice(0, MAX_LEGACY_FILES);
+
+    // 限制并发，防止大量文件同时下载
+    let totalBytes = 0;
+    for (let i = 0; i < others.length; i += LEGACY_CONCURRENCY) {
+      const batch = others.slice(i, i + LEGACY_CONCURRENCY);
+      await Promise.all(batch.map(async filePath => {
+        try {
+          const r = await fetch(`${skillBase}/${filePath}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
+          if (!r.ok) return;
+          const cl = Number(r.headers.get('content-length') ?? 0);
+          if (cl > MAX_LEGACY_FILE_BYTES || totalBytes + cl > MAX_ARCHIVE_UNPACKED_BYTES) return;
+          const buf = new Uint8Array(await r.arrayBuffer());
+          if (buf.byteLength > MAX_LEGACY_FILE_BYTES || totalBytes + buf.byteLength > MAX_ARCHIVE_UNPACKED_BYTES) return;
+          totalBytes += buf.byteLength;
+          files.set(filePath, buf);
+        } catch { /* 单文件失败容忍（legacy 行为） */ }
+      }));
+    }
 
     return { name: parsed.frontmatter.name, installName: entry.name, content, files };
   } catch {
