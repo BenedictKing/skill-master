@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- 移植 Vercel skills 的 5 项核心能力，补齐轻量安装与生态兼容短板：
+  - **`use` 命令**：不安装直接使用 skill，输出注入 prompt 或启动 agent（`src/core/use-engine.ts`、`src/commands/use.ts`）。复用 blob/well-known/clone/本地来源物化到临时目录，绝不触碰 registry/lock/canonical path；agent 启动映射仅 claude-code/codex，其余明确报错
+  - **Blob 快照快路径**：通过 GitHub Trees API + skills.sh 下载 API 物化 skill 快照，避免 git clone 整仓库下载；白名单 owner（vercel/vercel-labs 等）+ `SKILL_MASTER_BLOB` 开关，root skill 只保留 SKILL.md 避免污染 hash（`src/core/blob-source.ts`）。任一文件下载失败整体回退 clone
+  - **Well-known discovery v0.1/v0.2**：实现 RFC 8615 `.well-known/agent-skills` 发现，支持 v0.2.0 artifact/url/digest + zip/tar.gz 安全解压（50MB/1000 文件上限、路径穿越/symlink/hardlink 拒绝），v0.1.0 files[] 目录模型；物化到临时目录复用磁盘发现（`src/core/wellknown-source.ts`）
+  - **Agent 环境检测**：自研轻量检测（环境变量信号表，零外部依赖），agent/CI 内自动非交互；Cursor 强信号校验（`CURSOR_AGENT` 或 `agent-exec`），避免集成终端误判（`src/platform/agent-env.ts`）
+- `SkillSource`/`ParsedSource` 增加 `well-known` 类型与 `displaySource` 字段
+
+### Changed
+- `confirmProjectRoot` 在 agent/CI 环境自动采用猜测的 project root（等价 `--yes`）；仅非 TTY（管道）仍需显式 `--yes` 确认，保留显式确认安全语义（`src/core/project-root.ts`）
+- `parseSource` 对非 GitHub/GitLab 的 https URL 标记为 well-known，失败回退 git clone（保护自建 git 服务用户）（`src/core/git-source.ts`）
+- `add`/`update`/`restore` 全链路支持 well-known sourceType；installer 解析 well-known 已物化的 localPath
+- 测试 `runCli` 默认剥离 agent/CI 环境变量，使测试在「干净终端」语义下可预期
+
+### Fixed
+- **SSH URL 锁文件保留**：registry 与 lock 保留 `git@`/`ssh://` 原始 URL，避免归一化为 HTTPS 后破坏私钥认证；`update` 用 `isSameGitRepo` 判定 SSH↔HTTPS 等价，修复来源不兼容误判（`src/core/git-source.ts`、`src/commands/add.ts`、`src/commands/update.ts`）
+- `parseSource` 支持 `ssh://` URL，修复被错误拼接 `https://` 前缀的 bug
+
 ## [0.1.14] - 2026-04-27
 
 ### Added
