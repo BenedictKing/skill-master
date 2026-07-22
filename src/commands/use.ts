@@ -127,9 +127,9 @@ export async function use(args: string[]): Promise<void> {
 
   try {
     const code = await runUse(source, options);
-    process.exit(code);
+    process.exitCode = code;
   } catch (err) {
     logger.error((err as Error).message);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }

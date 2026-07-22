@@ -326,6 +326,15 @@ export async function tryBlobMaterialize(
   );
   if (downloads.some(d => d.download === null)) return null;
 
+  // 校验下载快照中的 SKILL.md 与 GitHub 读取的一致，防止供应链篡改
+  for (const { skill, download } of downloads) {
+    const skillMdFile = download!.files.find(f => f.path.toLowerCase().endsWith('/skill.md') || f.path.toLowerCase() === 'skill.md');
+    if (!skillMdFile || skillMdFile.contents !== skill.content) {
+      logger.warn('blob snapshot SKILL.md content mismatch, falling back to clone');
+      return null;
+    }
+  }
+
   // 物化到临时目录；root skill 只保留 SKILL.md，避免污染 canonical path
   const tempDir = createTempDir();
   try {

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { cloneRepo, parseSource } from '../../core/git-source.js';
 import { findAllSkillDirectories, findAllSkillDirectoriesWithPlugins, readSkillMd } from '../../core/skill-parser.js';
-import { fetchAllWellKnownSkills } from '../../core/wellknown-source.js';
+import { fetchAllWellKnownSkills, materializeWellKnownSkill } from '../../core/wellknown-source.js';
 import { envKeysFromDir, normalizeCandidate } from '../normalize.js';
 import type { ParsedSource, SkillCandidate } from '../../types/index.js';
 
@@ -63,16 +63,23 @@ export async function discoverFromSource(source: string, fullDepth = false): Pro
     try {
       const skills = await fetchAllWellKnownSkills(parsed.url!);
       if (skills.length > 0) {
-        return skills.map(s => normalizeCandidate({
-          provider: 'well-known',
-          source,
-          installHint: source,
-          path: s.name,
-          frontmatter: { name: s.name, description: s.installName ?? s.name },
-          envKeys: [],
-          parsedSource: parsed,
-          warnings: ['Metadata from well-known discovery endpoint'],
-        }));
+        const candidates: SkillCandidate[] = [];
+        for (const s of skills) {
+          // 物化到临时目录，使 compose 等命令能读取实际文件
+          const tempDir = await materializeWellKnownSkill(s);
+          const parsedSkill = await readSkillMd(tempDir);
+          candidates.push(normalizeCandidate({
+            provider: 'well-known',
+            source,
+            installHint: source,
+            path: tempDir,
+            frontmatter: parsedSkill?.frontmatter ?? { name: s.name, description: s.installName ?? s.name },
+            envKeys: parsedSkill ? await envKeysFromDir(tempDir) : [],
+            parsedSource: parsed,
+            warnings: ['Metadata from well-known discovery endpoint (materialized)'],
+          }));
+        }
+        return candidates;
       }
     } catch { /* fall through to git clone */ }
   }
