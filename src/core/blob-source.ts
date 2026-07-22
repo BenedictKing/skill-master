@@ -317,6 +317,9 @@ export async function tryBlobMaterialize(
     else if (skillMdPaths.length === named.length) return null; // 无匹配则回退 clone 做模糊匹配
   }
 
+  // 当用户指定了显式 ref 时，blob 下载无法保证对应版本，回退 clone
+  if (options.ref) return null;
+
   // 并行拉取完整快照，任一失败整体回退
   const downloads = await Promise.all(
     targets.map(async s => ({ skill: s, download: await fetchSkillDownload(ownerRepo, toSkillSlug(s.name)) })),

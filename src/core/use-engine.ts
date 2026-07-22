@@ -90,7 +90,7 @@ export async function materializeUseSkill(source: string, options: UseOptions = 
   }
 
   // 在来源中定位目标 skill 目录
-  const skillDir = await selectSkillDir(sourceDir, options.skill, options.fullDepth ?? false);
+  const skillDir = await selectSkillDir(sourceDir, options.skill ?? parsed.skillFilter, options.fullDepth ?? false);
   const parsedSkill = await readSkillMd(skillDir);
   if (!parsedSkill) {
     throw new Error(`Failed to parse SKILL.md in ${skillDir}`);
@@ -197,10 +197,12 @@ export async function launchAgent(agent: AgentPlatform, prompt: string): Promise
 
 /** 主编排：物化 → 构建 prompt → 输出或启动 agent。返回进程退出码。 */
 export async function runUse(source: string, options: UseOptions = {}): Promise<number> {
-  const materialized = await materializeUseSkill(source, options);
   const isTempSource = parseSource(source).type !== 'local';
+  let materialized: MaterializedUseSkill | undefined;
 
   try {
+    materialized = await materializeUseSkill(source, options);
+
     const prompt = buildUsePrompt({
       skillMd: materialized.skillMd,
       supportDir: materialized.skillDir,
@@ -214,7 +216,7 @@ export async function runUse(source: string, options: UseOptions = {}): Promise<
     return 0;
   } finally {
     // 仅清理物化产生的临时目录（git/well-known 来源）；本地路径不删除
-    if (isTempSource) {
+    if (isTempSource && materialized) {
       await removePath(materialized.tempRoot).catch(() => {});
     }
   }
