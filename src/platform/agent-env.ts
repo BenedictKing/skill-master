@@ -15,11 +15,16 @@ export interface AgentEnvResult {
   agentName?: string;
 }
 
-/** 强信号环境变量 → 检测名。存在即判定为对应 agent。 */
+/**
+ * 强信号环境变量 → 检测名。存在即判定为对应 agent。
+ *
+ * 注意：CODEX_HOME 不在此列 —— 用户会为了配置 Codex 在交互式 shell 手动设置它，
+ * 仅凭它无法区分「agent 启动」与「用户手动配置」，会导致普通运行被误判为 agent
+ * 而静默跳过确认。改用 CODEX_CI 等仅在 agent 运行时设置的信号。
+ */
 const STRONG_SIGNALS: ReadonlyArray<readonly [string, string]> = [
   ['CLAUDECODE', 'claude'],
   ['CLAUDE_CODE_ENTRYPOINT', 'claude'],
-  ['CODEX_HOME', 'codex'],
   ['CODEX_CI', 'codex'],
   ['GEMINI_CLI', 'gemini'],
   ['OPENCODE', 'opencode'],

@@ -19,6 +19,8 @@ import * as logger from '../utils/logger.js';
 const DISCOVERY_SCHEMA_V2 = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json';
 const MAX_ARCHIVE_UNPACKED_BYTES = 50 * 1024 * 1024;
 const MAX_ARCHIVE_FILES = 1000;
+/** artifact 下载字节上限：略大于解压上限，给压缩包留余量，同时阻断超大响应 OOM。 */
+const MAX_ARTIFACT_BYTES = 100 * 1024 * 1024;
 const FETCH_TIMEOUT = 10_000;
 
 const WELL_KNOWN_PATHS = ['.well-known/agent-skills', '.well-known/skills'] as const;
@@ -219,7 +221,20 @@ async function fetchArtifactSkill(entry: Extract<NormalizedWellKnownEntry, { ver
   try {
     const response = await fetch(entry.artifactUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
     if (!response.ok) return null;
+
+    // 读取前用 Content-Length 预检，避免超大响应占满内存（OOM）。
+    const contentLength = Number(response.headers.get('content-length') ?? 0);
+    if (contentLength > MAX_ARTIFACT_BYTES) {
+      logger.warn(`well-known artifact 超出大小上限 (${contentLength} bytes): ${entry.name}`);
+      return null;
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
+    // 无 Content-Length 或被压缩传输时，读取后再校验实际字节数。
+    if (bytes.byteLength > MAX_ARTIFACT_BYTES) {
+      logger.warn(`well-known artifact 超出大小上限 (${bytes.byteLength} bytes): ${entry.name}`);
+      return null;
+    }
+
     if (computeDigest(bytes) !== entry.digest) {
       logger.warn(`well-known digest mismatch for ${entry.name}`);
       return null;

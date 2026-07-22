@@ -221,4 +221,35 @@ describe('tryBlobMaterialize', () => {
     const result = await tryBlobMaterialize('vercel-labs/agent-skills');
     expect(result).toBeNull();
   });
+
+  it('skips files with path traversal and does not escape tempDir', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/git/trees/')) {
+        return jsonResponse({ sha: 's', tree: [{ path: 'skills/demo/SKILL.md', type: 'blob', sha: 'x' }] });
+      }
+      if (url.includes('raw.githubusercontent.com')) {
+        return new Response('---\nname: demo\ndescription: d\n---\n# demo', { status: 200 });
+      }
+      if (url.includes('/api/download/')) {
+        return jsonResponse({
+          files: [
+            { path: 'skills/demo/SKILL.md', contents: '---\nname: demo\ndescription: d\n---\n# demo' },
+            { path: '../evil.txt', contents: 'pwned' },           // 路径穿越
+            { path: 'skills/demo/../../escape.txt', contents: 'x' }, // 嵌套穿越
+            { path: 'skills/demo/ok.ts', contents: 'export {}' },
+          ],
+          hash: 'h',
+        });
+      }
+      return jsonResponse({}, 404);
+    }));
+
+    const result = await tryBlobMaterialize('vercel-labs/agent-skills');
+    tempDir = result!.tempDir;
+    // 合法文件写入，非法路径被跳过且不逃逸 tempDir
+    expect(existsSync(join(tempDir, 'skills/demo/SKILL.md'))).toBe(true);
+    expect(existsSync(join(tempDir, 'skills/demo/ok.ts'))).toBe(true);
+    expect(existsSync(join(tempDir, '../evil.txt'))).toBe(false);
+    expect(existsSync(join(tempDir, 'escape.txt'))).toBe(false);
+  });
 });

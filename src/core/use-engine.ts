@@ -122,11 +122,12 @@ async function fetchGitSource(url: string, ref?: string, subpath?: string, skill
   return dir;
 }
 
-/** well-known 来源：抓取全部并物化到临时根。 */
+/** well-known 来源：抓取全部并物化到临时根；发现不到 skill 时回退 git clone（自托管 git 服务场景）。 */
 async function fetchWellKnownSource(url: string): Promise<string> {
   const payloads = await fetchAllWellKnownSkills(url);
   if (payloads.length === 0) {
-    throw new Error(`No skills found at well-known endpoint: ${url}`);
+    // 自托管 HTTPS git 仓库可能被标记为 well-known，回退 clone
+    return cloneRepo(url);
   }
   return materializeWellKnownSkills(payloads);
 }

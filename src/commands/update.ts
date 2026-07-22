@@ -248,21 +248,23 @@ export async function resolveUpdateSource(
       };
     }
   } else if (parsed.type === 'well-known') {
-    // well-known：重新抓取并物化，定位到目标 skill
+    // well-known：重新抓取并物化，定位到目标 skill。
+    // 自托管 HTTPS git 仓库可能被标记为 well-known：发现失败时回退 clone。
     try {
       const payloads = await fetchAllWellKnownSkills(parsed.url!);
       const target = payloads.find(p => p.installName === skillName || p.name === skillName) ??
         (payloads.length === 1 ? payloads[0] : undefined);
-      if (!target) {
-        return { ok: false, reason: `well-known 端点未找到技能 "${skillName}"`, hint };
+      if (target) {
+        sourceDir = await materializeWellKnownSkill(target);
+        return {
+          ok: true,
+          source: { type: 'well-known', url: parsed.url!, localPath: sourceDir, displaySource: parsed.url! },
+          sourceLabel,
+          usedLock: useLock,
+        };
       }
-      sourceDir = await materializeWellKnownSkill(target);
-      return {
-        ok: true,
-        source: { type: 'well-known', url: parsed.url!, localPath: sourceDir, displaySource: parsed.url! },
-        sourceLabel,
-        usedLock: useLock,
-      };
+      // 发现不到 skill：回退 git clone（自托管 git 服务场景）
+      sourceDir = await cloneRepo(parsed.url!);
     } catch (err) {
       return { ok: false, reason: `无法获取 well-known 来源：${(err as Error).message}`, hint };
     }

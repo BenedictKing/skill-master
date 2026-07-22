@@ -25,8 +25,13 @@ describe('detectAgentEnv', () => {
     expect(detectAgentEnv(cleanEnv({ CLAUDE_CODE_ENTRYPOINT: 'cli' })).agentName).toBe('claude');
   });
 
-  it('detects codex via CODEX_HOME', () => {
-    expect(detectAgentEnv(cleanEnv({ CODEX_HOME: '/x' })).agentName).toBe('codex');
+  it('detects codex via CODEX_CI', () => {
+    expect(detectAgentEnv(cleanEnv({ CODEX_CI: '1' })).agentName).toBe('codex');
+  });
+
+  it('does NOT detect codex from CODEX_HOME alone (user manual config)', () => {
+    // 用户会为配置 Codex 在交互 shell 手动设 CODEX_HOME，不能据此误判 agent
+    expect(detectAgentEnv(cleanEnv({ CODEX_HOME: '/home/u/.codex' })).isAgent).toBe(false);
   });
 
   it('detects gemini via GEMINI_CLI', () => {

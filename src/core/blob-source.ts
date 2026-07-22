@@ -8,7 +8,7 @@
  * 仅对白名单 owner 启用（可用环境变量开关），任一文件下载失败则整体回退 clone。
  */
 import { writeFile, mkdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import { createTempDir } from '../utils/fs-helpers.js';
 import * as logger from '../utils/logger.js';
 
@@ -247,6 +247,24 @@ function extractSkillName(content: string): string | null {
 
 // ─── 主入口：物化到临时目录 ───
 
+/**
+ * 在 base 内安全拼接相对路径。
+ * 拒绝绝对路径、反斜杠、. / .. 段，并确认规范化结果仍在 base 内；非法返回 null。
+ */
+function safeJoinWithin(base: string, relPath: string): string | null {
+  if (!relPath || relPath.includes('\0')) return null;
+  if (relPath.startsWith('/') || relPath.startsWith('\\')) return null;
+  if (/^[A-Za-z]:/.test(relPath)) return null;
+  if (relPath.includes('\\')) return null;
+  const parts = relPath.split('/').filter(Boolean);
+  if (parts.length === 0) return null;
+  if (parts.some(p => p === '.' || p === '..')) return null;
+  const resolvedBase = resolve(base);
+  const dest = resolve(resolvedBase, parts.join('/'));
+  if (dest !== resolvedBase && !dest.startsWith(resolvedBase + sep)) return null;
+  return dest;
+}
+
 export interface BlobMaterializeOptions {
   subpath?: string;
   skillFilter?: string;
@@ -321,9 +339,14 @@ export async function tryBlobMaterialize(
         ? download!.files.filter(f => f.path.toLowerCase() === 'skill.md')
         : download!.files;
 
-      // 统一放到 tempDir/<file.path>/ 下，保持与 clone 后磁盘布局一致
+      // 统一放到 tempDir/<file.path>/ 下，保持与 clone 后磁盘布局一致。
+      // file.path 来自网络响应，必须校验防路径穿越（../ 逃逸 tempDir）。
       for (const file of files) {
-        const dest = join(tempDir, file.path);
+        const dest = safeJoinWithin(tempDir, file.path);
+        if (!dest) {
+          logger.warn(`blob snapshot 包含非法路径，跳过: ${file.path}`);
+          continue;
+        }
         await mkdir(dirname(dest), { recursive: true });
         await writeFile(dest, file.contents, 'utf-8');
       }
