@@ -1,11 +1,11 @@
 {
   "name": "skill-master",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Cross-platform skill package manager for AI coding agents",
   "type": "module",
   "main": "./dist/cli.js",
   "bin": {
-    "skill-master": "./bin/skill-master.mjs"
+    "skill-master": "bin/skill-master.mjs"
   },
   "files": [
     "dist",
@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/BenedictKing/skill-master.git"
+    "url": "git+https://github.com/BenedictKing/skill-master.git"
   },
   "bugs": {
     "url": "https://github.com/BenedictKing/skill-master/issues"

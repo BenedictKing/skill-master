@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.16] - 2026-09-05
 
 ### Fixed
 - GitHub installs of large skill collections no longer fail at step 1: `cloneRepo()` now prefers a GitHub tarball, then falls back to `git clone --depth 1` with a 5-minute budget (was 60s). Override with `SKILL_MASTER_CLONE_TIMEOUT_MS` (`src/core/git-source.ts`)
