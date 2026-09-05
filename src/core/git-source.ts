@@ -1,12 +1,44 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync } from 'node:fs';
-import { ensureDir, createTempDir } from '../utils/fs-helpers.js';
+import { createWriteStream, existsSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { Readable } from 'node:stream';
+import { ensureDir, createTempDir, removePath } from '../utils/fs-helpers.js';
 import { GitCloneError, SourceParseError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
 import type { ParsedSource } from '../types/index.js';
 
 const execFileAsync = promisify(execFile);
+
+/** Default fetch budget. Large skill collections exceed the old 60s git clone cap. */
+const DEFAULT_CLONE_TIMEOUT_MS = 300_000;
+
+function getCloneTimeoutMs(): number {
+  const raw = process.env.SKILL_MASTER_CLONE_TIMEOUT_MS;
+  if (!raw) return DEFAULT_CLONE_TIMEOUT_MS;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_CLONE_TIMEOUT_MS;
+}
+
+function isTimeoutError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as {
+    killed?: boolean;
+    signal?: NodeJS.Signals | string | null;
+    code?: string | number | null;
+    name?: string;
+  };
+  return (
+    e.killed === true ||
+    e.signal === 'SIGTERM' ||
+    e.code === 'ETIMEDOUT' ||
+    e.code === 'ABORT_ERR' ||
+    e.name === 'TimeoutError' ||
+    e.name === 'AbortError'
+  );
+}
 
 function splitTrailingSkillFilter(source: string): { source: string; skillFilter?: string } {
   const lastAt = source.lastIndexOf('@');
@@ -263,30 +295,82 @@ export async function cloneRepo(
 ): Promise<string> {
   const normalizedUrl = normalizeGitUrl(url);
   const tempDir = createTempDir();
-  await ensureDir(tempDir);
+  const timeout = getCloneTimeoutMs();
+  const env = {
+    ...process.env,
+    GIT_LFS_SKIP_SMUDGE: '1',
+    GIT_TERMINAL_PROMPT: '0',
+  };
 
-  const args = ['clone', '--depth', '1'];
-  if (branch) {
-    args.push('--branch', branch);
-  }
-  args.push(normalizedUrl, tempDir);
-
-  logger.debug(`Cloning ${normalizedUrl} to ${tempDir}`);
+  logger.debug(`Fetching ${normalizedUrl} to ${tempDir}`);
 
   try {
-    await execFileAsync('git', args, {
-      timeout: 60_000,
-      env: {
-        ...process.env,
-        GIT_LFS_SKIP_SMUDGE: '1',
-      },
-    });
+    const identity = parseGitIdentity(normalizedUrl);
+    if (identity?.host === 'github.com') {
+      const archive = await tryGithubArchive(identity.ownerRepo, tempDir, branch, timeout);
+      if (archive === 'ok') return tempDir;
+      if (archive === 'timeout') {
+        throw Object.assign(new Error('archive timed out'), { name: 'TimeoutError' });
+      }
+      await removePath(tempDir).catch(() => {});
+    }
+
+    const args = ['clone', '--depth', '1'];
+    if (branch) args.push('--branch', branch);
+    args.push(normalizedUrl, tempDir);
+    await execFileAsync('git', args, { timeout, env });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new GitCloneError(url, msg);
+    await removePath(tempDir).catch(() => {});
+    throw new GitCloneError(url, formatCloneFailure(err, timeout));
   }
 
   return tempDir;
+}
+
+type ArchiveResult = 'ok' | 'skip' | 'timeout';
+
+async function tryGithubArchive(
+  ownerRepo: string,
+  tempDir: string,
+  branch: string | undefined,
+  timeout: number,
+): Promise<ArchiveResult> {
+  const ref = branch && /^[A-Za-z0-9._/\-]+$/.test(branch) ? branch : 'HEAD';
+  const archiveUrl = `https://codeload.github.com/${ownerRepo}/tar.gz/${ref}`;
+  const archivePath = join(tempDir, '.skill-master-archive.tgz');
+
+  try {
+    await ensureDir(tempDir);
+    const res = await fetch(archiveUrl, {
+      signal: AbortSignal.timeout(timeout),
+      headers: { 'user-agent': 'skill-master' },
+    });
+    if (!res.ok || !res.body) {
+      logger.debug(`GitHub archive HTTP ${res.status} for ${ownerRepo}@${ref}`);
+      return 'skip';
+    }
+
+    await pipeline(Readable.fromWeb(res.body), createWriteStream(archivePath));
+    await execFileAsync('tar', ['-xzf', archivePath, '-C', tempDir, '--strip-components', '1'], { timeout });
+    await unlink(archivePath).catch(() => {});
+    logger.debug(`GitHub archive materialized ${ownerRepo}@${ref}`);
+    return 'ok';
+  } catch (err) {
+    logger.debug(`GitHub archive fallback to git clone: ${(err as Error).message}`);
+    await unlink(archivePath).catch(() => {});
+    return isTimeoutError(err) ? 'timeout' : 'skip';
+  }
+}
+
+function formatCloneFailure(err: unknown, timeout: number): string {
+  if (isTimeoutError(err)) {
+    const seconds = Math.round(timeout / 1000);
+    return (
+      `timed out after ${seconds}s. Large skill repos often exceed the default budget; ` +
+      `retry with SKILL_MASTER_CLONE_TIMEOUT_MS=${timeout * 2} or clone locally and install from the path`
+    );
+  }
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** Check if a local path exists and contains a skill */

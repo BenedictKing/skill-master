@@ -1,10 +1,58 @@
-import { describe, it, expect } from 'vitest';
-import {
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { gzipSync } from 'node:zlib';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomBytes } from 'node:crypto';
+
+const tempDirs: string[] = [];
+
+vi.mock('../../src/utils/fs-helpers.js', async () => {
+  const actual = await vi.importActual<typeof import('../../src/utils/fs-helpers.js')>(
+    '../../src/utils/fs-helpers.js',
+  );
+  return {
+    ...actual,
+    createTempDir() {
+      const dir = join(tmpdir(), `skill-master-test-${randomBytes(8).toString('hex')}`);
+      mkdirSync(dir, { recursive: true });
+      tempDirs.push(dir);
+      return dir;
+    },
+  };
+});
+
+const {
   parseSource,
   parseGitIdentity,
   isSameGitRepo,
   getLockSource,
-} from '../../src/core/git-source.js';
+  cloneRepo,
+} = await import('../../src/core/git-source.js');
+
+function buildTar(entries: Array<{ path: string; content: string }>): Uint8Array {
+  const blocks: Buffer[] = [];
+  for (const { path, content } of entries) {
+    const data = Buffer.from(content, 'utf-8');
+    const header = Buffer.alloc(512, 0);
+    header.write(path, 0, Math.min(path.length, 100), 'utf-8');
+    header.write('0000644\0', 100, 8);
+    header.write('0000000\0', 108, 8);
+    header.write('0000000\0', 116, 8);
+    header.write(data.length.toString(8).padStart(11, '0') + '\0', 124, 12);
+    header.write('00000000000\0', 136, 12);
+    header.write('        ', 148, 8);
+    header.writeUInt8(0x30, 156);
+    let sum = 0;
+    for (const b of header) sum += b;
+    header.write(sum.toString(8).padStart(6, '0') + '\0 ', 148, 8);
+    blocks.push(header, data);
+    const pad = (512 - (data.length % 512)) % 512;
+    if (pad) blocks.push(Buffer.alloc(pad, 0));
+  }
+  blocks.push(Buffer.alloc(1024, 0));
+  return new Uint8Array(Buffer.concat(blocks));
+}
 
 describe('parseSource', () => {
   it('parses SCP-style SSH URL as git', () => {
@@ -126,5 +174,40 @@ describe('getLockSource', () => {
       .toBe('https://gitlab.com/o/r.git');
     expect(getLockSource('https://git.example.com/o/r.git', 'https://git.example.com/o/r.git'))
       .toBe('https://git.example.com/o/r.git');
+  });
+});
+
+describe('cloneRepo', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('materializes a GitHub tarball instead of git clone', async () => {
+    const tgz = gzipSync(Buffer.from(buildTar([
+      { path: 'repo-main/SKILL.md', content: '---\nname: demo\n---\n# demo\n' },
+      { path: 'repo-main/scripts/run.sh', content: 'echo hi\n' },
+    ])));
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      expect(url).toBe('https://codeload.github.com/owner/repo/tar.gz/HEAD');
+      return new Response(tgz, { status: 200, headers: { 'content-type': 'application/gzip' } });
+    }));
+
+    const dir = await cloneRepo('https://github.com/owner/repo.git');
+    expect(readFileSync(join(dir, 'SKILL.md'), 'utf-8')).toContain('name: demo');
+    expect(existsSync(join(dir, 'scripts/run.sh'))).toBe(true);
+    expect(existsSync(join(dir, '.skill-master-archive.tgz'))).toBe(false);
+  });
+
+  it('hints how to raise the budget when GitHub archive times out', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+    }));
+
+    await expect(cloneRepo('owner/repo')).rejects.toThrow(/timed out after 300s.*SKILL_MASTER_CLONE_TIMEOUT_MS=600000/);
   });
 });

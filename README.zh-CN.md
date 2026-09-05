@@ -99,6 +99,8 @@ skill-master add https://github.com/user/skill --copy
 - 本地安装会先把 skill 复制到 canonical skill store，再链接到目标 agent 或项目。
 - 修改原始本地 skill 目录后，需要重新执行一次 `skill-master add <path>`，更新后的内容才会重新安装。
 
+大型 GitHub skill 合集（数百 MB）以前会在第 1 步失败：`git clone --depth 1` 被硬限制在 60 秒。现在 `add` 会先下 GitHub tarball，失败再回退 git clone，默认超时 5 分钟。可用 `SKILL_MASTER_CLONE_TIMEOUT_MS` 覆盖，或先本地 clone 再传路径安装。
+
 ### 验证与组合
 
 ```bash

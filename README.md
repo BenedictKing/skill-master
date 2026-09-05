@@ -101,6 +101,8 @@ For local skill development and testing:
 - Local installs are copied into the canonical skill store before being linked into the target agent/project.
 - After editing the original local skill directory, run `skill-master add <path>` again to reinstall the updated version.
 
+Large GitHub skill collections (hundreds of megabytes) used to fail at step 1 because `git clone --depth 1` was hard-capped at 60 seconds. `add` now downloads a GitHub tarball first, then falls back to git clone with a 5-minute budget. Override with `SKILL_MASTER_CLONE_TIMEOUT_MS`, or clone the repo yourself and pass the local path.
+
 ### Verify and Compose
 
 ```bash
