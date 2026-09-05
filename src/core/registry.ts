@@ -137,6 +137,30 @@ export async function listRegistry(): Promise<Record<string, RegistryEntry>> {
   return registry.skills;
 }
 
+/** Find all skill names installed from a given source (case-insensitive, URL-form tolerant) */
+export async function findSkillsBySource(source: string): Promise<string[]> {
+  const registry = await readRegistry();
+  const target = normalizeSourceKey(source);
+  const names: string[] = [];
+  for (const [name, entry] of Object.entries(registry.skills)) {
+    if (entry.source && normalizeSourceKey(entry.source) === target) {
+      names.push(name);
+    }
+  }
+  return names;
+}
+
+/** Normalize a source string for comparison: lowercase, strip protocol/.git/trailing slash */
+function normalizeSourceKey(source: string): string {
+  return source
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^git@(github\.com):/, '$1/')
+    .replace(/\.git$/, '')
+    .replace(/\/+$/, '');
+}
+
 /** Get a single registry entry */
 export async function getRegistryEntry(skillName: string): Promise<RegistryEntry | null> {
   const registry = await readRegistry();

@@ -166,3 +166,55 @@ describe('remove command', () => {
     });
   });
 });
+
+  it('removes every skill installed from a source when given the source name', () => {
+    const testDir = join(tmpdir(), `skill-master-remove-source-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'project');
+
+    try {
+      mkdirSync(join(projectDir, '.git'), { recursive: true });
+      mkdirSync(join(projectDir, '.claude', 'skills'), { recursive: true });
+      mkdirSync(join(testHome, '.agents', 'skills'), { recursive: true });
+      mkdirSync(join(testHome, '.agents', 'skills', 'skill-a'), { recursive: true });
+      mkdirSync(join(testHome, '.agents', 'skills', 'skill-b'), { recursive: true });
+      mkdirSync(join(projectDir, '.claude', 'skills', 'skill-a'), { recursive: true });
+      mkdirSync(join(projectDir, '.claude', 'skills', 'skill-b'), { recursive: true });
+
+      const entry = (name: string, canonical: string, agentPath: string) => ({
+        source: 'K-Dense-AI/scientific-agent-skills',
+        installed_at: '2026-09-05T00:00:00.000Z',
+        updated_at: '2026-09-05T00:00:00.000Z',
+        agents: [{ agent: 'claude-code', agent_path: agentPath, global: true }],
+        env_keys: [],
+        capabilities: [],
+        canonical_path: canonical,
+      });
+
+      writeFileSync(
+        join(testHome, '.agents', 'registry.json'),
+        JSON.stringify({
+          version: 2,
+          skills: {
+            'skill-a': entry('skill-a', join(testHome, '.agents', 'skills', 'skill-a'), join(projectDir, '.claude', 'skills', 'skill-a')),
+            'skill-b': entry('skill-b', join(testHome, '.agents', 'skills', 'skill-b'), join(projectDir, '.claude', 'skills', 'skill-b')),
+          },
+        }, null, 2),
+        'utf-8',
+      );
+      writeFileSync(join(projectDir, '.claude', 'skills', 'skill-a', 'SKILL.md'), '# a\n', 'utf-8');
+      writeFileSync(join(projectDir, '.claude', 'skills', 'skill-b', 'SKILL.md'), '# b\n', 'utf-8');
+
+      const result = runCli(['remove', 'K-Dense-AI/scientific-agent-skills', '--yes'], projectDir, { HOME: testHome });
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Removing 2 skills installed from source');
+
+      const registry = JSON.parse(readFileSync(join(testHome, '.agents', 'registry.json'), 'utf-8'));
+      expect(registry.skills['skill-a']).toBeUndefined();
+      expect(registry.skills['skill-b']).toBeUndefined();
+      expect(existsSync(join(projectDir, '.claude', 'skills', 'skill-a'))).toBe(false);
+      expect(existsSync(join(projectDir, '.claude', 'skills', 'skill-b'))).toBe(false);
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  }, 30000);

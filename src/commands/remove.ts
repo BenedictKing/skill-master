@@ -1,8 +1,9 @@
-import { getRegistryEntry, removeFromRegistry, removeAgentFromRegistry, listRegistry } from '../core/registry.js';
+import { getRegistryEntry, removeFromRegistry, removeAgentFromRegistry, listRegistry, findSkillsBySource } from '../core/registry.js';
 import { removeSkillFromLocalLock } from '../core/local-lock.js';
 import { resolveProjectCwd } from '../core/project-root.js';
 import { removePath } from '../utils/fs-helpers.js';
 import { getSkillCanonicalPath, getSkillConfigPath, getAgentGlobalSkillPath } from '../utils/paths.js';
+import { confirm } from '../utils/prompt.js';
 import * as logger from '../utils/logger.js';
 import { SkillNotFoundError } from '../utils/errors.js';
 import type { AgentPlatform } from '../types/index.js';
@@ -160,6 +161,31 @@ export async function remove(args: string[]): Promise<void> {
     logger.error('No skills specified. Provide skill names or use --all.');
     process.exit(1);
   }
+
+  // Resolve names that refer to a source (e.g. "owner/repo") into the installed skills.
+  // Remains a no-op when every name is already a direct skill entry.
+  const resolved: string[] = [];
+  for (const name of skillNames) {
+    const entry = await getRegistryEntry(name);
+    if (entry) {
+      resolved.push(name);
+      continue;
+    }
+    const bySource = await findSkillsBySource(name);
+    if (bySource.length === 0) {
+      throw new SkillNotFoundError(name);
+    }
+    if (bySource.length > 1 && !flags.yes) {
+      const ok = await confirm(`Remove ${bySource.length} skills installed from "${name}"? [y/N] `);
+      if (!ok) {
+        logger.info('Aborted.');
+        process.exit(0);
+      }
+    }
+    logger.info(`Removing ${bySource.length} skills installed from source "${name}": ${bySource.join(', ')}`);
+    resolved.push(...bySource);
+  }
+  skillNames = resolved;
 
   try {
     for (const skillName of skillNames) {
