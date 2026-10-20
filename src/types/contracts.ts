@@ -14,6 +14,28 @@ export interface FindJsonV1 {
   results: SkillCandidate[];
 }
 
+export interface AddJsonAgentV1 {
+  agent: string;
+  agentPath: string;
+  installMode: 'symlink' | 'copy';
+}
+
+export interface AddJsonSkillV1 {
+  name: string;
+  version?: string;
+  canonicalPath: string;
+  agents: AddJsonAgentV1[];
+}
+
+export interface AddJsonV1 {
+  source: string;
+  sourceType: 'github' | 'well-known' | 'local';
+  global: boolean;
+  installed: number;
+  skills: AddJsonSkillV1[];
+  error?: string;
+}
+
 export interface InspectJsonV1 {
   target: string;
   task: TaskRequirement;

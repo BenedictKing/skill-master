@@ -100,6 +100,9 @@ skill-master add https://github.com/user/skill/tree/<40-hex-sha>
 # Direct download URL: single SKILL.md or .zip/.tgz/.tar.gz archive
 skill-master add https://example.com/skill.tgz
 skill-master add https://example.com/SKILL.md
+
+# Machine-readable result (implies --yes; errors are JSON too)
+skill-master add owner/repo --json
 skill-master add https://github.com/user/repo/releases/download/v1/skill.zip
 ```
 

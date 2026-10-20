@@ -549,4 +549,37 @@ describe('add command', () => {
       expect(result.flags.yes).toBe(true);
     });
   });
+
+  it('emits a single JSON document with --json and implies --yes', () => {
+    const result = runCli(['add', './skill-src', '--json'], testDir);
+    expect(result.exitCode).toBe(0);
+
+    // stdout 必须是纯 JSON（任何泄漏的人类日志都会让 parse 失败）
+    const payload = JSON.parse(result.stdout);
+    expect(payload.source).toBe('./skill-src');
+    expect(payload.sourceType).toBe('local');
+    expect(payload.global).toBe(false);
+    expect(payload.installed).toBe(1);
+    expect(payload.skills).toHaveLength(1);
+    expect(payload.skills[0].name).toBe('add-me');
+    expect(payload.skills[0].agents[0].agent).toBe('claude-code');
+    expect(payload.skills[0].agents[0].installMode).toMatch(/^(symlink|copy)$/);
+    expect(existsSync(payload.skills[0].agents[0].agentPath)).toBe(true);
+    expect(existsSync(payload.skills[0].canonicalPath)).toBe(true);
+  }, 30000);
+
+  it('reports resolution failures as JSON with a non-zero exit code', () => {
+    const result = runCli(['add', './does-not-exist', '--json'], testDir);
+    expect(result.exitCode).toBe(1);
+    const payload = JSON.parse(result.stdout);
+    expect(payload.error).toBeTruthy();
+    expect(payload.installed).toBe(0);
+    expect(payload.skills).toEqual([]);
+  }, 30000);
+
+  it('parses --json and sets yes implicitly', () => {
+    const { flags } = parseAddFlags(['./x', '--json']);
+    expect(flags.json).toBe(true);
+    expect(flags.yes).toBe(true);
+  });
 });

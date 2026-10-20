@@ -60,6 +60,7 @@ Add Options:
   --full-depth          Search all subdirectories
   --copy                Copy instead of symlink
   --force               Force reinstall
+  --json                Machine-readable output (implies --yes)
 
 Recommend Options:
   --install             Install the best recommendation

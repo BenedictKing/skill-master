@@ -1,4 +1,5 @@
 import { discoverCandidates } from '../discovery/search.js';
+import { runSilenced } from '../utils/silence.js';
 import { runRecommendation } from '../recommend/ranking.js';
 import type { SolveJsonV1, VerifyJsonV1 } from '../types/contracts.js';
 import { verifyInstalledSkill } from '../verify/runtime-check.js';
@@ -80,19 +81,6 @@ async function verifySkill(skillName: string, cwd: string): Promise<VerifyJsonV1
     ...baseReport,
     conflicts: [...baseReport.conflicts, ...conflicts],
   });
-}
-
-async function runSilenced<T>(fn: () => Promise<T>): Promise<T> {
-  const originalLog = console.log;
-  const originalError = console.error;
-  console.log = () => {};
-  console.error = () => {};
-  try {
-    return await fn();
-  } finally {
-    console.log = originalLog;
-    console.error = originalError;
-  }
 }
 
 export async function solve(args: string[]): Promise<void> {

@@ -98,6 +98,9 @@ skill-master add https://github.com/user/skill/tree/<40位SHA>
 # 直接下载 URL：单个 SKILL.md 或 .zip/.tgz/.tar.gz 归档
 skill-master add https://example.com/skill.tgz
 skill-master add https://example.com/SKILL.md
+
+# 机器可读输出（隐含 --yes；错误同样以 JSON 返回）
+skill-master add owner/repo --json
 skill-master add https://github.com/user/repo/releases/download/v1/skill.zip
 ```
 

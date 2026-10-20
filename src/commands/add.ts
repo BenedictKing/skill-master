@@ -12,6 +12,8 @@ import { SkillNotFoundError } from '../utils/errors.js';
 import * as logger from '../utils/logger.js';
 import { parseSourceAndSkill } from '../utils/parse-positional.js';
 import type { SkillSource, AgentPlatform, ParsedSource } from '../types/index.js';
+import type { AddJsonV1, AddJsonSkillV1 } from '../types/contracts.js';
+import { silenceConsole } from '../utils/silence.js';
 import { existsSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
@@ -27,6 +29,7 @@ export interface AddFlags {
   force: boolean;
   allowHiddenDirs: boolean;
   upstream: boolean;
+  json: boolean;
   help: boolean;
 }
 
@@ -48,6 +51,7 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
     force: false,
     allowHiddenDirs: false,
     upstream: false,
+    json: false,
     help: false,
   };
 
@@ -136,6 +140,12 @@ export function parseAddFlags(args: string[]): { source: string | null; flags: A
         i++;
         break;
 
+      case '--json':
+        flags.json = true;
+        flags.yes = true;
+        i++;
+        break;
+
       case '--copy':
         flags.copy = true;
         i++;
@@ -192,6 +202,7 @@ function printAddHelp(): void {
   console.log('  --upstream            Prefer upstream source for forked repositories');
   console.log('  --copy                Copy instead of symlink');
   console.log('  --force               Force reinstall');
+  console.log('  --json                Machine-readable output (implies --yes)');
   console.log('');
   console.log('Examples:');
   console.log('  skill-master add owner/repo');
@@ -357,214 +368,256 @@ export async function add(args: string[]): Promise<void> {
   }
 
   const commandCwd = process.cwd();
-  const effectiveSource = await resolveUpstreamSource(source, flags.upstream);
+  // --json：静默人类可读日志，最终只输出一份 JSON（含错误）
+  const restoreConsole = flags.json ? silenceConsole() : null;
+  const jsonSkills: AddJsonSkillV1[] = [];
+  const emitJsonError = (message: string): never => {
+    restoreConsole?.();
+    const payload: AddJsonV1 = {
+      source, sourceType: 'local', global: flags.global, installed: 0, skills: [], error: message,
+    };
+    console.log(JSON.stringify(payload, null, 2));
+    process.exit(1);
+  };
+  try {
+    const effectiveSource = await resolveUpstreamSource(source, flags.upstream);
 
-  // Parse source string into structured form
-  const parsed = parseSource(effectiveSource);
+    // Parse source string into structured form
+    const parsed = parseSource(effectiveSource);
 
-  // Merge skillFilter from source (e.g. owner/repo@skill) into flags.skill
-  if (parsed.skillFilter && !flags.skill.includes(parsed.skillFilter)) {
-    flags.skill.push(parsed.skillFilter);
-  }
-
-  // Resolve source directory
-  let sourceDir: string;
-  // 实际来源类型：well-known 发现失败回退 clone 时归位为 git，
-  // 避免 registry/lock 把自托管 git 仓库错误标记为 well-known（restore/check 会失效）
-  let resolvedType: 'git' | 'local' | 'well-known' = parsed.type;
-
-  if (parsed.type === 'git') {
-    logger.step(1, 9, 'Fetching skill source...');
-    // Git-host 归档 URL（release 资产、codeload tarball、raw 文件）先走直接下载
-    let downloaded: string | undefined;
-    if (parsed.url && directDownloadKind(parsed.url)) {
-      try {
-        downloaded = await materializeDirectDownload(parsed.url);
-        logger.info('Using direct download');
-      } catch (err) {
-        logger.warn(`Direct download failed: ${(err as Error).message}`);
-      }
+    // Merge skillFilter from source (e.g. owner/repo@skill) into flags.skill
+    if (parsed.skillFilter && !flags.skill.includes(parsed.skillFilter)) {
+      flags.skill.push(parsed.skillFilter);
     }
-    if (downloaded) {
-      sourceDir = downloaded;
-    } else {
-      sourceDir = await fetchGitSourceDir(parsed);
-      // Narrow to subpath if specified
-      if (parsed.subpath) {
-        const sub = join(sourceDir, parsed.subpath);
-        if (existsSync(sub)) {
-          sourceDir = sub;
+
+    // Resolve source directory
+    let sourceDir: string;
+    // 实际来源类型：well-known 发现失败回退 clone 时归位为 git，
+    // 避免 registry/lock 把自托管 git 仓库错误标记为 well-known（restore/check 会失效）
+    let resolvedType: 'git' | 'local' | 'well-known' = parsed.type;
+
+    if (parsed.type === 'git') {
+      logger.step(1, 9, 'Fetching skill source...');
+      // Git-host 归档 URL（release 资产、codeload tarball、raw 文件）先走直接下载
+      let downloaded: string | undefined;
+      if (parsed.url && directDownloadKind(parsed.url)) {
+        try {
+          downloaded = await materializeDirectDownload(parsed.url);
+          logger.info('Using direct download');
+        } catch (err) {
+          logger.warn(`Direct download failed: ${(err as Error).message}`);
         }
       }
-    }
-  } else if (parsed.type === 'well-known') {
-    logger.step(1, 9, 'Fetching skill source...');
-    // 直接下载 URL（.md/.zip/.tgz/.tar.gz）优先物化，失败回退 well-known 发现与 git clone
-    let downloaded: string | undefined;
-    if (directDownloadKind(parsed.url!)) {
-      try {
-        downloaded = await materializeDirectDownload(parsed.url!);
-        logger.info('Using direct download');
-      } catch (err) {
-        logger.warn(`Direct download failed: ${(err as Error).message}`);
-      }
-    }
-    if (downloaded) {
-      sourceDir = downloaded;
-    } else {
-      // 先试 well-known 发现（物化到临时根），失败回退 git clone（自建 git 服务场景）
-      const wellKnown = await fetchWellKnownSourceDir(parsed.url!);
-      if (wellKnown) {
-        sourceDir = wellKnown;
-        logger.info('Using well-known skills discovery');
+      if (downloaded) {
+        sourceDir = downloaded;
       } else {
-        sourceDir = await cloneRepo(parsed.url!);
-        resolvedType = 'git';
+        sourceDir = await fetchGitSourceDir(parsed);
+        // Narrow to subpath if specified
+        if (parsed.subpath) {
+          const sub = join(sourceDir, parsed.subpath);
+          if (existsSync(sub)) {
+            sourceDir = sub;
+          }
+        }
       }
-    }
-  } else {
-    sourceDir = resolve(commandCwd, parsed.path!);
-    if (!existsSync(sourceDir)) {
-      throw new SkillNotFoundError(sourceDir);
-    }
-  }
-
-  // Discover all skill directories in the source (with plugin info)
-  const discoveredSkillDirs = await findAllSkillDirectoriesWithPlugins(sourceDir, flags.fullDepth, flags.allowHiddenDirs);
-  const allSkillDirs = discoveredSkillDirs;
-  if (allSkillDirs.length === 0) {
-    throw new SkillNotFoundError(`No SKILL.md found in ${sourceDir}`);
-  }
-
-  // --list mode: print discovered skills and exit
-  if (flags.list) {
-    logger.blank();
-    logger.tableHeader('Skill', 'Version', 'Description');
-    for (const { path: dir } of allSkillDirs) {
-      const sk = await readSkillMd(dir);
-      if (sk) {
-        logger.tableRow(
-          sk.frontmatter.name,
-          sk.frontmatter.version ?? '-',
-          sk.frontmatter.description ?? '-',
-        );
+    } else if (parsed.type === 'well-known') {
+      logger.step(1, 9, 'Fetching skill source...');
+      // 直接下载 URL（.md/.zip/.tgz/.tar.gz）优先物化，失败回退 well-known 发现与 git clone
+      let downloaded: string | undefined;
+      if (directDownloadKind(parsed.url!)) {
+        try {
+          downloaded = await materializeDirectDownload(parsed.url!);
+          logger.info('Using direct download');
+        } catch (err) {
+          logger.warn(`Direct download failed: ${(err as Error).message}`);
+        }
       }
-    }
-    logger.blank();
-    return;
-  }
-
-  // Filter by --skill if specified
-  let targetDirs: DiscoveredSkill[] = allSkillDirs;
-  if (flags.skill.length > 0 && !flags.skill.includes('*')) {
-    const requested = new Set(flags.skill.map(s => s.toLowerCase()));
-    const filtered: DiscoveredSkill[] = [];
-
-    for (const item of allSkillDirs) {
-      const sk = await readSkillMd(item.path);
-      if (!sk) continue;
-      const name = sk.frontmatter.name.toLowerCase();
-      const dirName = basename(item.path).toLowerCase();
-      if (requested.has(name) || requested.has(dirName)) {
-        filtered.push(item);
+      if (downloaded) {
+        sourceDir = downloaded;
+      } else {
+        // 先试 well-known 发现（物化到临时根），失败回退 git clone（自建 git 服务场景）
+        const wellKnown = await fetchWellKnownSourceDir(parsed.url!);
+        if (wellKnown) {
+          sourceDir = wellKnown;
+          logger.info('Using well-known skills discovery');
+        } else {
+          sourceDir = await cloneRepo(parsed.url!);
+          resolvedType = 'git';
+        }
+      }
+    } else {
+      sourceDir = resolve(commandCwd, parsed.path!);
+      if (!existsSync(sourceDir)) {
+        throw new SkillNotFoundError(sourceDir);
       }
     }
 
-    if (filtered.length === 0) {
-      const available = [];
+    // Discover all skill directories in the source (with plugin info)
+    const discoveredSkillDirs = await findAllSkillDirectoriesWithPlugins(sourceDir, flags.fullDepth, flags.allowHiddenDirs);
+    const allSkillDirs = discoveredSkillDirs;
+    if (allSkillDirs.length === 0) {
+      throw new SkillNotFoundError(`No SKILL.md found in ${sourceDir}`);
+    }
+
+    // --list mode: print discovered skills and exit
+    if (flags.list) {
+      logger.blank();
+      logger.tableHeader('Skill', 'Version', 'Description');
       for (const { path: dir } of allSkillDirs) {
         const sk = await readSkillMd(dir);
-        if (sk) available.push(sk.frontmatter.name);
+        if (sk) {
+          logger.tableRow(
+            sk.frontmatter.name,
+            sk.frontmatter.version ?? '-',
+            sk.frontmatter.description ?? '-',
+          );
+        }
       }
-      logger.error(
-        `No matching skills found for: ${flags.skill.join(', ')}\n` +
-        `  Available skills: ${available.join(', ')}`
-      );
+      logger.blank();
+      return;
+    }
+
+    // Filter by --skill if specified
+    let targetDirs: DiscoveredSkill[] = allSkillDirs;
+    if (flags.skill.length > 0 && !flags.skill.includes('*')) {
+      const requested = new Set(flags.skill.map(s => s.toLowerCase()));
+      const filtered: DiscoveredSkill[] = [];
+
+      for (const item of allSkillDirs) {
+        const sk = await readSkillMd(item.path);
+        if (!sk) continue;
+        const name = sk.frontmatter.name.toLowerCase();
+        const dirName = basename(item.path).toLowerCase();
+        if (requested.has(name) || requested.has(dirName)) {
+          filtered.push(item);
+        }
+      }
+
+      if (filtered.length === 0) {
+        const available = [];
+        for (const { path: dir } of allSkillDirs) {
+          const sk = await readSkillMd(dir);
+          if (sk) available.push(sk.frontmatter.name);
+        }
+        const message =
+          `No matching skills found for: ${flags.skill.join(', ')}\n` +
+          `  Available skills: ${available.join(', ')}`;
+        if (flags.json) emitJsonError(message);
+        logger.error(message);
+        process.exit(1);
+      }
+
+      targetDirs = filtered;
+    }
+
+    const rootResolution = flags.global
+      ? { root: commandCwd, source: 'cwd' as const }
+      : resolveProjectRoot(commandCwd);
+    const cwd = flags.global
+      ? commandCwd
+      : await confirmProjectRoot(rootResolution, flags.yes, {
+        details: buildProjectRootPreview(flags, rootResolution.root),
+      });
+    if (!flags.global && cwd !== commandCwd) {
+      logger.info(`Project root: ${cwd}`);
+    }
+
+    // If multiple agents specified, install for each
+    const agents = resolveAgentTargets(flags, cwd);
+    const totalInstallations = targetDirs.length * agents.length;
+    let completedInstallations = 0;
+
+    try {
+      for (const { path: dir, pluginName } of targetDirs) {
+        // 保留原始输入作为展示/匹配标签（SSH 安装保留 git@/ssh:// 原始 URL）
+        const lockSource = resolvedType === 'git' ? getLockSource(parsed.url!, effectiveSource) : undefined;
+        // For git/well-known sources, preserve the URL; for local, use the actual path.
+        // 依据 resolvedType（回退 clone 时为 git），保证 registry/lock 记录真实来源
+        const installSource: SkillSource = resolvedType === 'git'
+          ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir, displaySource: lockSource }
+          : resolvedType === 'well-known'
+            ? { type: 'well-known', url: parsed.url!, localPath: dir, displaySource: parsed.url! }
+            : { type: 'local', path: dir };
+        const concreteAgents = agents.filter((agent): agent is AgentPlatform => agent !== undefined);
+        const results = concreteAgents.length === agents.length
+          ? await installSkillToAgents({
+            source: installSource,
+            agents: concreteAgents,
+            cwd,
+            global: flags.global,
+            copy: flags.copy,
+            force: flags.force,
+            yes: flags.yes,
+          })
+          : [await installSkill({
+            source: installSource,
+            agent: agents[0] as AgentPlatform | undefined,
+            cwd,
+            global: flags.global,
+            copy: flags.copy,
+            force: flags.force,
+            yes: flags.yes,
+          })];
+
+        jsonSkills.push({
+          name: results[0].skillName,
+          version: results[0].version,
+          canonicalPath: results[0].canonicalPath,
+          agents: results.map((r, i) => ({
+            agent: String(concreteAgents[i] ?? agents[0] ?? detectPlatform(cwd)),
+            agentPath: r.agentPath,
+            installMode: r.installMode,
+          })),
+        });
+
+        // Update local lock for non-global installs
+        if (!flags.global) {
+          // Record relative skill dir path for multi-skill source repos
+          const skillDir = relative(sourceDir, dir);
+          const lockEntrySource = resolvedType === 'git'
+            ? lockSource!
+            : resolvedType === 'well-known'
+              ? parsed.url!
+              : formatProjectRelativeSource(cwd, sourceDir);
+          const lockSourceType = resolvedType === 'git'
+            ? 'github'
+            : resolvedType === 'well-known'
+              ? 'well-known'
+              : 'local';
+          await addSkillToLocalLock(results[0].skillName, {
+            source: lockEntrySource,
+            sourceType: lockSourceType,
+            computedHash: await computeSkillFolderHash(results[0].canonicalPath),
+            ...(skillDir && skillDir !== '.' ? { skillDir } : {}),
+            ...(pluginName ? { pluginName } : {}),
+          }, cwd);
+        }
+
+        completedInstallations += results.length;
+        if (completedInstallations < totalInstallations) {
+          logger.blank();
+        }
+      }
+    } catch (err) {
+      if (flags.json) emitJsonError((err as Error).message);
+      logger.error((err as Error).message);
       process.exit(1);
     }
 
-    targetDirs = filtered;
-  }
-
-  const rootResolution = flags.global
-    ? { root: commandCwd, source: 'cwd' as const }
-    : resolveProjectRoot(commandCwd);
-  const cwd = flags.global
-    ? commandCwd
-    : await confirmProjectRoot(rootResolution, flags.yes, {
-      details: buildProjectRootPreview(flags, rootResolution.root),
-    });
-  if (!flags.global && cwd !== commandCwd) {
-    logger.info(`Project root: ${cwd}`);
-  }
-
-  // If multiple agents specified, install for each
-  const agents = resolveAgentTargets(flags, cwd);
-  const totalInstallations = targetDirs.length * agents.length;
-  let completedInstallations = 0;
-
-  try {
-    for (const { path: dir, pluginName } of targetDirs) {
-      // 保留原始输入作为展示/匹配标签（SSH 安装保留 git@/ssh:// 原始 URL）
-      const lockSource = resolvedType === 'git' ? getLockSource(parsed.url!, effectiveSource) : undefined;
-      // For git/well-known sources, preserve the URL; for local, use the actual path.
-      // 依据 resolvedType（回退 clone 时为 git），保证 registry/lock 记录真实来源
-      const installSource: SkillSource = resolvedType === 'git'
-        ? { type: 'git', url: parsed.url!, branch: parsed.ref, localPath: dir, displaySource: lockSource }
-        : resolvedType === 'well-known'
-          ? { type: 'well-known', url: parsed.url!, localPath: dir, displaySource: parsed.url! }
-          : { type: 'local', path: dir };
-      const concreteAgents = agents.filter((agent): agent is AgentPlatform => agent !== undefined);
-      const results = concreteAgents.length === agents.length
-        ? await installSkillToAgents({
-          source: installSource,
-          agents: concreteAgents,
-          cwd,
-          global: flags.global,
-          copy: flags.copy,
-          force: flags.force,
-          yes: flags.yes,
-        })
-        : [await installSkill({
-          source: installSource,
-          agent: agents[0] as AgentPlatform | undefined,
-          cwd,
-          global: flags.global,
-          copy: flags.copy,
-          force: flags.force,
-          yes: flags.yes,
-        })];
-
-      // Update local lock for non-global installs
-      if (!flags.global) {
-        // Record relative skill dir path for multi-skill source repos
-        const skillDir = relative(sourceDir, dir);
-        const lockEntrySource = resolvedType === 'git'
-          ? lockSource!
-          : resolvedType === 'well-known'
-            ? parsed.url!
-            : formatProjectRelativeSource(cwd, sourceDir);
-        const lockSourceType = resolvedType === 'git'
-          ? 'github'
-          : resolvedType === 'well-known'
-            ? 'well-known'
-            : 'local';
-        await addSkillToLocalLock(results[0].skillName, {
-          source: lockEntrySource,
-          sourceType: lockSourceType,
-          computedHash: await computeSkillFolderHash(results[0].canonicalPath),
-          ...(skillDir && skillDir !== '.' ? { skillDir } : {}),
-          ...(pluginName ? { pluginName } : {}),
-        }, cwd);
-      }
-
-      completedInstallations += results.length;
-      if (completedInstallations < totalInstallations) {
-        logger.blank();
-      }
+    if (flags.json) {
+      restoreConsole?.();
+      const payload: AddJsonV1 = {
+        source,
+        sourceType: resolvedType === 'git' ? 'github' : resolvedType === 'well-known' ? 'well-known' : 'local',
+        global: flags.global,
+        installed: completedInstallations,
+        skills: jsonSkills,
+      };
+      console.log(JSON.stringify(payload, null, 2));
     }
   } catch (err) {
-    logger.error((err as Error).message);
-    process.exit(1);
+    // 来源解析阶段的异常（如本地路径不存在）：JSON 模式下也要给调用方结构化错误
+    if (flags.json) emitJsonError((err as Error).message);
+    throw err;
   }
 }
