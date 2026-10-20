@@ -61,3 +61,15 @@ export class SourceParseError extends SkillManagerError {
     this.name = 'SourceParseError';
   }
 }
+
+/** well-known URL 带作用域路径但该作用域下无对应 skill（拒绝静默回落安装根 index） */
+export class WellKnownScopeNotFoundError extends SkillManagerError {
+  constructor(url: string, scope: string) {
+    super(
+      `well-known endpoint has no skill "${scope}" under ${url}, ` +
+      'and the root index was not installed silently. ' +
+      'Check the skill name in the URL, or install from the origin root directly.',
+    );
+    this.name = 'WellKnownScopeNotFoundError';
+  }
+}

@@ -13,6 +13,7 @@ import { gunzipSync, inflateRawSync } from 'node:zlib';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createTempDir } from '../utils/fs-helpers.js';
+import { WellKnownScopeNotFoundError } from '../utils/errors.js';
 import { parseSkillMd } from './skill-parser.js';
 import * as logger from '../utils/logger.js';
 
@@ -63,6 +64,10 @@ export function isWellKnownCandidate(url: string): boolean {
 interface IndexCandidate {
   entries: NormalizedWellKnownEntry[];
   indexUrl: string;
+  /** URL 带路径但作用域 index 不可用，实际使用了源站根 index */
+  usedRootFallback: boolean;
+  /** URL 路径的最后一个有效段（无路径或应忽略时为 null） */
+  scopeSegment: string | null;
 }
 
 /** 抓取并归一化 index，返回首个有效候选。 */
@@ -71,21 +76,30 @@ export async function fetchWellKnownIndex(url: string): Promise<NormalizedWellKn
   return candidate?.entries ?? null;
 }
 
+const IGNORED_SCOPE_SEGMENTS = new Set(['agent-skills', 'skills']);
+
 async function fetchIndexCandidate(baseUrl: string): Promise<IndexCandidate | null> {
   try {
     const parsed = new URL(baseUrl);
     const basePath = parsed.pathname.replace(/\/$/, '');
     const origin = `${parsed.protocol}//${parsed.host}`;
 
-    const urlsToTry: Array<{ indexUrl: string }> = [];
+    const urlsToTry: Array<{ indexUrl: string; root: boolean }> = [];
     for (const wellKnownPath of WELL_KNOWN_PATHS) {
-      urlsToTry.push({ indexUrl: `${origin}${basePath}/${wellKnownPath}/${INDEX_FILE}` });
+      urlsToTry.push({ indexUrl: `${origin}${basePath}/${wellKnownPath}/${INDEX_FILE}`, root: false });
       if (basePath) {
-        urlsToTry.push({ indexUrl: `${origin}/${wellKnownPath}/${INDEX_FILE}` });
+        urlsToTry.push({ indexUrl: `${origin}/${wellKnownPath}/${INDEX_FILE}`, root: true });
       }
     }
 
-    for (const { indexUrl } of urlsToTry) {
+    const scopeSegments = basePath.split('/').filter(Boolean);
+    const lastSegment = scopeSegments[scopeSegments.length - 1] ?? null;
+    const scopeSegment =
+      lastSegment && !lastSegment.startsWith('.') && !IGNORED_SCOPE_SEGMENTS.has(lastSegment)
+        ? lastSegment
+        : null;
+
+    for (const { indexUrl, root } of urlsToTry) {
       try {
         const response = await fetch(indexUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
         if (!response.ok) continue;
@@ -97,7 +111,7 @@ async function fetchIndexCandidate(baseUrl: string): Promise<IndexCandidate | nu
         const raw = JSON.parse(new TextDecoder().decode(buf)) as unknown;
         const entries = normalizeIndex(raw, indexUrl);
         if (entries && entries.length > 0) {
-          return { entries, indexUrl };
+          return { entries, indexUrl, usedRootFallback: root && !!basePath, scopeSegment };
         }
       } catch {
         continue;
@@ -309,7 +323,19 @@ export async function fetchAllWellKnownSkills(url: string): Promise<WellKnownSki
   if (!candidate) return [];
 
   // 限制总条目数，防止恶意 index 耗尽内存
-  const entries = candidate.entries.slice(0, MAX_LEGACY_FILES);
+  let entries = candidate.entries.slice(0, MAX_LEGACY_FILES);
+
+  // 作用域语义：URL 带路径且最终用的是根 index 时，路径末段应匹配某个 skill 名；
+  // 匹配则只装该 skill，不匹配则报错——绝不静默安装整个根目录。
+  const scopedName = candidate.usedRootFallback ? candidate.scopeSegment : null;
+  if (scopedName) {
+    const scoped = entries.filter((e) => e.name === scopedName);
+    if (scoped.length === 0) {
+      throw new WellKnownScopeNotFoundError(url, scopedName);
+    }
+    entries = scoped;
+  }
+
   const results: (WellKnownSkillPayload | null)[] = [];
 
   // 限制并发下载
@@ -319,7 +345,15 @@ export async function fetchAllWellKnownSkills(url: string): Promise<WellKnownSki
     results.push(...batchResults);
   }
 
-  return results.filter((s): s is WellKnownSkillPayload => s !== null);
+  const payloads = results.filter((s): s is WellKnownSkillPayload => s !== null);
+  // 作用域指定的 skill 在 index 中存在，但下载或 digest 校验失败：
+  // 硬报错而非静默回退（例如 clone），避免掩盖完整性问题。
+  if (scopedName && payloads.length === 0) {
+    throw new Error(
+      `well-known scoped skill "${scopedName}" failed to download or failed digest verification (${url})`,
+    );
+  }
+  return payloads;
 }
 
 // ─── 物化到临时目录 ───

@@ -477,3 +477,86 @@ describe('materialize', () => {
     expect(existsSync(join(dir, 'two', 'SKILL.md'))).toBe(true);
   });
 });
+
+describe('well-known scoped URL semantics', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubScopedRootIndex(options?: { rootEntries?: Array<{ name: string; content?: string }>; scopedIndexOk?: boolean }) {
+    const rootEntries = options?.rootEntries ?? [
+      { name: 'alpha', content: skillMd('alpha') },
+      { name: 'beta', content: skillMd('beta') },
+    ];
+    const ROOT_INDEX = 'https://example.com/.well-known/agent-skills/index.json';
+    return vi.fn(async (url: string) => {
+      // 根 index 必须精确匹配：作用域 index 请求同样以 /.well-known/.../index.json 结尾
+      if (url === ROOT_INDEX) {
+        return jsonResponse({
+          $schema: SCHEMA_V2,
+          skills: rootEntries.map((e) => ({
+            name: e.name,
+            description: 'd',
+            type: 'skill-md',
+            url: `./${e.name}/SKILL.md`,
+            digest: sha256(e.content ?? skillMd(e.name)),
+          })),
+        });
+      }
+      if (url.includes('/.well-known/') && url.endsWith('/index.json')) {
+        // 作用域 index 尝试：仅在明确提供时成功，否则 404（触发根回落）。
+        // 注意 artifact 相对路径也会解析进 .well-known/ 目录，不能在此拦截。
+        if (options?.scopedIndexOk && url.startsWith('https://example.com/my-skill/')) {
+          return jsonResponse({
+            $schema: SCHEMA_V2,
+            skills: [{ name: 'my-skill', description: 'd', type: 'skill-md', url: './m/SKILL.md', digest: sha256(skillMd('my-skill')) }],
+          });
+        }
+        return jsonResponse({}, 404);
+      }
+      for (const e of rootEntries) {
+        if (url.endsWith(`/${e.name}/SKILL.md`)) {
+          return new Response(e.content ?? skillMd(e.name), { status: 200 });
+        }
+      }
+      if (url.endsWith('/m/SKILL.md')) {
+        return new Response(skillMd('my-skill'), { status: 200 });
+      }
+      return jsonResponse({}, 404);
+    });
+  }
+
+  it('installs only the scoped skill when the root index is used', async () => {
+    const fetchSpy = stubScopedRootIndex();
+    vi.stubGlobal('fetch', fetchSpy);
+    const skills = await fetchAllWellKnownSkills('https://example.com/alpha');
+    expect(skills.map((s) => s.name)).toEqual(['alpha']);
+    // beta 的 artifact 不应被请求
+    expect(fetchSpy.mock.calls.some(([u]) => String(u).includes('/beta/'))).toBe(false);
+  });
+
+  it('throws WellKnownScopeNotFoundError when the scope matches no skill', async () => {
+    vi.stubGlobal('fetch', stubScopedRootIndex());
+    await expect(fetchAllWellKnownSkills('https://example.com/ghost'))
+      .rejects.toThrow(/no skill "ghost"/);
+  });
+
+  it('hard-errors when the scoped skill fails digest verification', async () => {
+    const bad = skillMd('alpha');
+    vi.stubGlobal('fetch', stubScopedRootIndex({
+      rootEntries: [{ name: 'alpha', content: 'tampered content' }],
+    }));
+    await expect(fetchAllWellKnownSkills('https://example.com/alpha'))
+      .rejects.toThrow(/failed to download or failed digest verification/);
+  });
+
+  it('uses the scoped index directly when available (no root fallback)', async () => {
+    vi.stubGlobal('fetch', stubScopedRootIndex({ scopedIndexOk: true }));
+    const skills = await fetchAllWellKnownSkills('https://example.com/my-skill');
+    expect(skills.map((s) => s.name)).toEqual(['my-skill']);
+  });
+
+  it('does not scope URLs whose last segment is a well-known path itself', async () => {
+    vi.stubGlobal('fetch', stubScopedRootIndex());
+    const skills = await fetchAllWellKnownSkills('https://example.com/skills');
+    expect(skills.map((s) => s.name).sort()).toEqual(['alpha', 'beta']);
+  });
+});
