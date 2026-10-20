@@ -93,6 +93,9 @@ skill-master add owner/repo -a claude-code cursor
 # Copy mode (recommended for Windows)
 skill-master add owner/repo --copy
 
+# Pin to an exact commit (tree URL or skills-field ref)
+skill-master add https://github.com/user/skill/tree/<40-hex-sha>
+
 # Direct download URL: single SKILL.md or .zip/.tgz/.tar.gz archive
 skill-master add https://example.com/skill.tgz
 skill-master add https://example.com/SKILL.md

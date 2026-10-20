@@ -317,10 +317,19 @@ export async function cloneRepo(
       await removePath(tempDir).catch(() => {});
     }
 
-    const args = ['clone', '--depth', '1'];
-    if (branch) args.push('--branch', branch);
-    args.push(normalizedUrl, tempDir);
-    await execFileAsync('git', args, { timeout, env });
+    if (branch && /^[0-9a-f]{40}$/i.test(branch)) {
+      // git clone --branch 不接受裸 commit SHA：init + remote + fetch 指定 commit + checkout
+      // （GitHub/主流服务端已启用 allowReachableSHA1InWant，可按 SHA 浅取）
+      await execFileAsync('git', ['init', '--quiet', tempDir], { timeout, env });
+      await execFileAsync('git', ['-C', tempDir, 'remote', 'add', 'origin', normalizedUrl], { timeout, env });
+      await execFileAsync('git', ['-C', tempDir, 'fetch', '--depth', '1', 'origin', branch], { timeout, env });
+      await execFileAsync('git', ['-C', tempDir, 'checkout', '--quiet', 'FETCH_HEAD'], { timeout, env });
+    } else {
+      const args = ['clone', '--depth', '1'];
+      if (branch) args.push('--branch', branch);
+      args.push(normalizedUrl, tempDir);
+      await execFileAsync('git', args, { timeout, env });
+    }
   } catch (err) {
     await removePath(tempDir).catch(() => {});
     throw new GitCloneError(url, formatCloneFailure(err, timeout));

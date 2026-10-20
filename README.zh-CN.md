@@ -91,6 +91,9 @@ skill-master add https://github.com/user/skill --agent=cursor
 # 使用复制而非符号链接（Windows 推荐）
 skill-master add https://github.com/user/skill --copy
 
+# 固定到指定 commit（tree URL 或 skills 字段 ref）
+skill-master add https://github.com/user/skill/tree/<40位SHA>
+
 # 直接下载 URL：单个 SKILL.md 或 .zip/.tgz/.tar.gz 归档
 skill-master add https://example.com/skill.tgz
 skill-master add https://example.com/SKILL.md

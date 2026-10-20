@@ -232,6 +232,65 @@ describe('cloneRepo', () => {
     );
   }, 20_000);
 
+  function makeRecordingGit(fakeBin: string): string {
+    const logPath = join(fakeBin, 'git-invocations.jsonl');
+    writeFileSync(
+      join(fakeBin, 'git'),
+      [
+        '#!/usr/bin/env node',
+        'const fs = require("node:fs");',
+        'const NL = String.fromCharCode(10);',
+        `fs.appendFileSync(${JSON.stringify(logPath)}, JSON.stringify(process.argv.slice(2)) + NL);`,
+      ].join(String.fromCharCode(10)),
+      { mode: 0o755 },
+    );
+    return logPath;
+  }
+
+  function readInvocations(logPath: string): string[][] {
+    try {
+      return readFileSync(logPath, 'utf-8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    } catch {
+      return [];
+    }
+  }
+
+  it.skipIf(process.platform === 'win32')(
+    'fetches commit SHAs via init+fetch+checkout instead of clone --branch',
+    async () => {
+      const fakeBin = makeFakeBin();
+      const logPath = makeRecordingGit(fakeBin);
+      const sha = '1482e8469b0a9e0d8cc18ea274a0a01423d29ae8';
+
+      const dir = await cloneRepo('https://gitlab.com/owner/repo.git', sha);
+
+      expect(dir).toBeTruthy();
+      const invocations = readInvocations(logPath);
+      expect(invocations[0]?.[0]).toBe('init');
+      expect(invocations[1]?.slice(0, 4)).toEqual(['-C', expect.any(String), 'remote', 'add']);
+      expect(invocations[1]?.[invocations[1]!.length - 1]).toBe('https://gitlab.com/owner/repo.git');
+      expect(invocations[2]?.slice(0, 6)).toEqual(['-C', expect.any(String), 'fetch', '--depth', '1', 'origin']);
+      expect(invocations[2]?.[invocations[2]!.length - 1]).toBe(sha);
+      expect(invocations[3]).toEqual(['-C', expect.any(String), 'checkout', '--quiet', 'FETCH_HEAD']);
+      // 不应出现 clone --branch <sha>
+      expect(invocations.some((args) => args[0] === 'clone' && args.includes(sha))).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'still uses clone --branch for named refs',
+    async () => {
+      const fakeBin = makeFakeBin();
+      const logPath = makeRecordingGit(fakeBin);
+
+      await cloneRepo('https://gitlab.com/owner/repo.git', 'v1.2.0');
+
+      const invocations = readInvocations(logPath);
+      expect(invocations).toHaveLength(1);
+      expect(invocations[0]).toEqual(['clone', '--depth', '1', '--branch', 'v1.2.0', 'https://gitlab.com/owner/repo.git', expect.any(String)]);
+    },
+  );
+
   it.skipIf(process.platform === 'win32')(
     'downloads the GitHub archive via curl when proxy env is set, so HTTP(S)_PROXY is honored',
     async () => {
