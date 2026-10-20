@@ -1,7 +1,9 @@
 import { installSkill, installSkillToAgents } from '../core/installer.js';
 import { cloneRepo, getLockSource, parseSource } from '../core/git-source.js';
 import { tryBlobMaterialize } from '../core/blob-source.js';
+import { getExplicitGhToken } from '../core/github-auth.js';
 import { fetchAllWellKnownSkills, materializeWellKnownSkills } from '../core/wellknown-source.js';
+import { directDownloadKind, materializeDirectDownload } from '../core/download-source.js';
 import { confirmProjectRoot, formatProjectRelativeSource, resolveProjectRoot } from '../core/project-root.js';
 import { findAllSkillDirectoriesWithPlugins, readSkillMd, type DiscoveredSkill } from '../core/skill-parser.js';
 import { addSkillToLocalLock, computeSkillFolderHash } from '../core/local-lock.js';
@@ -315,6 +317,7 @@ async function fetchGitSourceDir(parsed: ParsedSource): Promise<string> {
       subpath: parsed.subpath,
       skillFilter: parsed.skillFilter,
       ref: parsed.ref,
+      getToken: getExplicitGhToken,
     });
     if (blob) {
       logger.info('Using blob snapshot (fast path)');
@@ -372,24 +375,52 @@ export async function add(args: string[]): Promise<void> {
 
   if (parsed.type === 'git') {
     logger.step(1, 9, 'Fetching skill source...');
-    sourceDir = await fetchGitSourceDir(parsed);
-    // Narrow to subpath if specified
-    if (parsed.subpath) {
-      const sub = join(sourceDir, parsed.subpath);
-      if (existsSync(sub)) {
-        sourceDir = sub;
+    // Git-host 归档 URL（release 资产、codeload tarball、raw 文件）先走直接下载
+    let downloaded: string | undefined;
+    if (parsed.url && directDownloadKind(parsed.url)) {
+      try {
+        downloaded = await materializeDirectDownload(parsed.url);
+        logger.info('Using direct download');
+      } catch (err) {
+        logger.warn(`Direct download failed: ${(err as Error).message}`);
+      }
+    }
+    if (downloaded) {
+      sourceDir = downloaded;
+    } else {
+      sourceDir = await fetchGitSourceDir(parsed);
+      // Narrow to subpath if specified
+      if (parsed.subpath) {
+        const sub = join(sourceDir, parsed.subpath);
+        if (existsSync(sub)) {
+          sourceDir = sub;
+        }
       }
     }
   } else if (parsed.type === 'well-known') {
     logger.step(1, 9, 'Fetching skill source...');
-    // 先试 well-known 发现（物化到临时根），失败回退 git clone（自建 git 服务场景）
-    const wellKnown = await fetchWellKnownSourceDir(parsed.url!);
-    if (wellKnown) {
-      sourceDir = wellKnown;
-      logger.info('Using well-known skills discovery');
+    // 直接下载 URL（.md/.zip/.tgz/.tar.gz）优先物化，失败回退 well-known 发现与 git clone
+    let downloaded: string | undefined;
+    if (directDownloadKind(parsed.url!)) {
+      try {
+        downloaded = await materializeDirectDownload(parsed.url!);
+        logger.info('Using direct download');
+      } catch (err) {
+        logger.warn(`Direct download failed: ${(err as Error).message}`);
+      }
+    }
+    if (downloaded) {
+      sourceDir = downloaded;
     } else {
-      sourceDir = await cloneRepo(parsed.url!);
-      resolvedType = 'git';
+      // 先试 well-known 发现（物化到临时根），失败回退 git clone（自建 git 服务场景）
+      const wellKnown = await fetchWellKnownSourceDir(parsed.url!);
+      if (wellKnown) {
+        sourceDir = wellKnown;
+        logger.info('Using well-known skills discovery');
+      } else {
+        sourceDir = await cloneRepo(parsed.url!);
+        resolvedType = 'git';
+      }
     }
   } else {
     sourceDir = resolve(commandCwd, parsed.path!);

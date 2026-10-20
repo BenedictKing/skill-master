@@ -384,14 +384,21 @@ async function readBodyWithLimit(response: Response): Promise<Uint8Array | null>
   return new Uint8Array(Buffer.concat(chunks.map(c => Buffer.from(c.buffer, c.byteOffset, c.byteLength))));
 }
 
-function extractArchive(bytes: Uint8Array, artifactUrl: string, contentType: string): Map<string, WellKnownFileContent> {
+/** 解压 zip/tar.gz 归档为相对路径 → 内容映射（含路径穿越/解压上限加固），供 well-known 与直接下载复用 */
+export function extractArchive(
+  bytes: Uint8Array,
+  artifactUrl: string,
+  contentType: string,
+  opts?: { requireRootSkillMd?: boolean },
+): Map<string, WellKnownFileContent> {
   const lower = artifactUrl.toLowerCase();
   const isZip = contentType.includes('application/zip') || lower.endsWith('.zip') || (bytes[0] === 0x50 && bytes[1] === 0x4b);
   const isTarGz =
     contentType.includes('application/gzip') || contentType.includes('application/x-gzip') ||
     lower.endsWith('.tar.gz') || lower.endsWith('.tgz') || (bytes[0] === 0x1f && bytes[1] === 0x8b);
-  if (isZip) return extractZip(bytes);
-  if (isTarGz) return extractTarGz(bytes);
+  const requireRoot = opts?.requireRootSkillMd !== false;
+  if (isZip) return extractZip(bytes, requireRoot);
+  if (isTarGz) return extractTarGz(bytes, requireRoot);
   throw new Error('Unsupported archive format');
 }
 
@@ -415,7 +422,7 @@ function addArchiveFile(files: Map<string, WellKnownFileContent>, path: string, 
   files.set(normalized, content);
 }
 
-function extractTarGz(bytes: Uint8Array): Map<string, WellKnownFileContent> {
+function extractTarGz(bytes: Uint8Array, requireRootSkillMd: boolean): Map<string, WellKnownFileContent> {
   // maxOutputLength 限制解压输出，防止高压缩比归档（压缩炸弹）OOM
   const tar = gunzipSync(Buffer.from(bytes), { maxOutputLength: MAX_ARCHIVE_UNPACKED_BYTES });
   const files = new Map<string, WellKnownFileContent>();
@@ -441,7 +448,7 @@ function extractTarGz(bytes: Uint8Array): Map<string, WellKnownFileContent> {
     offset += Math.ceil(size / 512) * 512;
   }
 
-  if (!files.has('SKILL.md')) throw new Error('Archive missing root SKILL.md');
+  if (requireRootSkillMd && !files.has('SKILL.md')) throw new Error('Archive missing root SKILL.md');
   return files;
 }
 
@@ -451,7 +458,7 @@ function readTarString(buffer: Uint8Array, offset: number, length: number): stri
   return new TextDecoder().decode(nul >= 0 ? slice.subarray(0, nul) : slice);
 }
 
-function extractZip(bytes: Uint8Array): Map<string, WellKnownFileContent> {
+function extractZip(bytes: Uint8Array, requireRootSkillMd: boolean): Map<string, WellKnownFileContent> {
   const buffer = Buffer.from(bytes);
   const eocd = findZipEOCD(buffer);
   if (eocd < 0) throw new Error('Invalid zip archive');
@@ -511,7 +518,7 @@ function extractZip(bytes: Uint8Array): Map<string, WellKnownFileContent> {
     addArchiveFile(files, fileName, new Uint8Array(content), total);
   }
 
-  if (!files.has('SKILL.md')) throw new Error('Archive missing root SKILL.md');
+  if (requireRootSkillMd && !files.has('SKILL.md')) throw new Error('Archive missing root SKILL.md');
   return files;
 }
 

@@ -340,7 +340,8 @@ const PROXY_ENV_KEYS = [
   'all_proxy',
 ] as const;
 
-function hasProxyEnv(): boolean {
+/** 检测代理环境变量（curl/git 原生支持，Node fetch 不支持） */
+export function hasProxyEnv(): boolean {
   return PROXY_ENV_KEYS.some((key) => !!process.env[key]);
 }
 
@@ -379,7 +380,7 @@ function runCurl(args: string[], timeoutMs: number): Promise<void> {
  * silently never applies to tarball downloads. curl honors them natively.
  * Returns false only when curl is unavailable (caller falls back to fetch).
  */
-async function downloadArchiveViaCurl(url: string, dest: string, timeoutMs: number): Promise<boolean> {
+export async function downloadArchiveViaCurl(url: string, dest: string, timeoutMs: number): Promise<boolean> {
   const args = [
     '-fsSL',
     '--connect-timeout', '15',
