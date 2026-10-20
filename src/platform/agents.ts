@@ -6,6 +6,8 @@ const home = homedir();
 const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(home, '.config');
 const codexHome = process.env.CODEX_HOME?.trim() || join(home, '.codex');
 const claudeHome = process.env.CLAUDE_CONFIG_DIR?.trim() || join(home, '.claude');
+const kimiCodeHome = process.env.KIMI_CODE_HOME?.trim() || join(home, '.kimi-code');
+const minimaxDataDir = process.env.MINIMAX_DATA_DIR?.trim() || join(home, '.minimax');
 
 export interface AgentConfig {
   name: string;
@@ -171,6 +173,13 @@ export const AGENTS = {
     globalSkillsDir: join(home, '.kilocode/skills'),
     detectMarker: '.kilocode',
   },
+  'kimi-code': {
+    name: 'kimi-code',
+    displayName: 'Kimi Code',
+    skillsDir: '.kimi-code/skills',
+    globalSkillsDir: join(kimiCodeHome, 'skills'),
+    detectMarker: '.kimi-code',
+  },
   'kimi-cli': {
     name: 'kimi-cli',
     displayName: 'Kimi Code CLI',
@@ -191,6 +200,12 @@ export const AGENTS = {
     globalSkillsDir: join(home, '.kode/skills'),
     detectMarker: '.kode',
   },
+  kukuai: {
+    name: 'kukuai',
+    displayName: 'Kukuai',
+    skillsDir: '.kukuai/skills',
+    globalSkillsDir: join(home, '.kukuai/skills'),
+  },
   mcpjam: {
     name: 'mcpjam',
     displayName: 'MCPJam',
@@ -204,6 +219,19 @@ export const AGENTS = {
     skillsDir: '.vibe/skills',
     globalSkillsDir: join(home, '.vibe/skills'),
     detectMarker: '.vibe',
+  },
+  minimax: {
+    name: 'minimax',
+    displayName: 'MiniMax Code',
+    skillsDir: '.minimax/skills',
+    globalSkillsDir: join(minimaxDataDir, 'skills'),
+    detectMarker: '.minimax',
+  },
+  mirasim: {
+    name: 'mirasim',
+    displayName: 'Mirasim',
+    skillsDir: '.mirasim/skills',
+    globalSkillsDir: join(home, '.mirasim/skills'),
   },
   mux: {
     name: 'mux',
@@ -286,6 +314,12 @@ export const AGENTS = {
     skillsDir: '.windsurf/skills',
     globalSkillsDir: join(home, '.codeium/windsurf/skills'),
     detectMarker: '.windsurf',
+  },
+  workbuddy: {
+    name: 'workbuddy',
+    displayName: 'WorkBuddy',
+    skillsDir: '.workbuddy/skills',
+    globalSkillsDir: join(home, '.workbuddy/skills'),
   },
   zencoder: {
     name: 'zencoder',
