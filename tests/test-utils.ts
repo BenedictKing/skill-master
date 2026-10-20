@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import Ajv from 'ajv';
 
 const CLI_PATH = join(import.meta.dirname, '..', 'src', 'cli.ts');
@@ -29,10 +30,37 @@ const AGENT_DETECTION_ENV_VARS = [
 ];
 
 /** 构造剥离了 agent/CI 信号的基础环境。 */
+let isolatedHome: string | undefined;
+
+/**
+ * CLI 子进程默认使用的隔离 HOME。不隔离时，并行的测试文件会对真实的
+ * ~/.agents/registry.json 做并发读改写（间歇性损坏导致 add 偶发失败），
+ * 同时把测试夹具污染进开发者机器。测试仍可用显式 env.HOME 覆盖。
+ */
+function defaultIsolatedHome(): string {
+  isolatedHome ??= mkdtempSync(join(tmpdir(), 'skill-master-test-home-'));
+  return isolatedHome;
+}
+
+process.on('exit', () => {
+  if (isolatedHome) {
+    try {
+      rmSync(isolatedHome, { recursive: true, force: true });
+    } catch {
+      // best-effort cleanup
+    }
+  }
+});
+
 function baseEnv(): Record<string, string> {
   const env = { ...process.env } as Record<string, string>;
   for (const key of AGENT_DETECTION_ENV_VARS) {
     delete env[key];
+  }
+  // CLI 子进程默认禁用 gh api 认证档，避免测试意外调用真实 gh/GitHub
+  env.SKILL_MASTER_GH_API = env.SKILL_MASTER_GH_API ?? '0';
+  if (!env.SKILL_MASTER_TEST_REAL_HOME) {
+    env.HOME = defaultIsolatedHome();
   }
   return env;
 }
