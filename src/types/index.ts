@@ -261,6 +261,8 @@ export interface LocalLockEntry {
   skillDir?: string;
   /** Name of the plugin this skill belongs to (from .claude-plugin manifest) */
   pluginName?: string;
+  /** True when this entry is managed by the package.json `skills` field (safe to prune when the entry disappears) */
+  skillsField?: boolean;
   verification?: LockVerificationSnapshot;
   composedFrom?: LockCompositionSource[];
 }

@@ -311,11 +311,12 @@ export async function discoverNodeModulesSkills(cwd: string): Promise<string[]> 
   if (!existsSync(nmDir)) return [];
 
   const results: string[] = [];
+  const packageDirs: string[] = [];
 
   try {
     const entries = await readdir(nmDir, { withFileTypes: true });
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
 
       if (entry.name.startsWith('@')) {
         // Scoped packages: scan @scope/*
@@ -323,24 +324,41 @@ export async function discoverNodeModulesSkills(cwd: string): Promise<string[]> 
           const scopeEntries = await readdir(join(nmDir, entry.name), { withFileTypes: true });
           for (const scopeEntry of scopeEntries) {
             if (scopeEntry.isDirectory()) {
-              const pkgDir = join(nmDir, entry.name, scopeEntry.name);
-              if (existsSync(join(pkgDir, 'SKILL.md'))) {
-                results.push(pkgDir);
-              }
+              packageDirs.push(join(nmDir, entry.name, scopeEntry.name));
             }
           }
         } catch {
           // ignore
         }
-      } else if (!entry.name.startsWith('.')) {
-        const pkgDir = join(nmDir, entry.name);
-        if (existsSync(join(pkgDir, 'SKILL.md'))) {
-          results.push(pkgDir);
-        }
+      } else {
+        packageDirs.push(join(nmDir, entry.name));
       }
     }
   } catch {
     // ignore
+  }
+
+  for (const pkgDir of packageDirs) {
+    // Root skill (single-skill package)
+    if (existsSync(join(pkgDir, 'SKILL.md'))) {
+      results.push(pkgDir);
+      continue;
+    }
+    // Multi-skill packages ship skills under skills/ or dist/skills/
+    for (const sub of ['skills', join('dist', 'skills')]) {
+      const subDir = join(pkgDir, sub);
+      if (!existsSync(subDir)) continue;
+      try {
+        const skillEntries = await readdir(subDir, { withFileTypes: true });
+        for (const skillEntry of skillEntries) {
+          if (skillEntry.isDirectory() && existsSync(join(subDir, skillEntry.name, 'SKILL.md'))) {
+            results.push(join(subDir, skillEntry.name));
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
   }
 
   return results;

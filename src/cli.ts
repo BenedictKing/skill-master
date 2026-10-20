@@ -73,6 +73,9 @@ Sync Options:
   -a, --agent <agents>  Target agents (space-separated)
   -y, --yes             Skip confirmations
   -f, --force           Force reinstall even if unchanged
+  --include <skills>    Only sync the named skills (comma/space separated)
+  --exclude <skills>    Skip the named skills (comma/space separated)
+  -r, --recursive       Also read the "skills" field of workspace packages
 
 Examples:
   skill-master add owner/repo
