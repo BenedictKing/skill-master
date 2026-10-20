@@ -41,6 +41,7 @@ npx skill-master add <skill-source>
 ```bash
 # 查找候选 skill
 skill-master find "code review"
+skill-master find cli --owner vercel-labs
 skill-master find "code review" --json
 
 # 审查某个 source 或已安装 skill

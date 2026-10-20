@@ -17,12 +17,17 @@ export { discoverInstalledSkills } from './providers/registry.js';
 export { searchGhSkill } from './providers/gh-skill.js';
 export { searchVercelSkills } from './providers/vercel.js';
 
-export async function discoverCandidates(query: string, cwd: string, preferredAgent?: AgentPlatform): Promise<SkillCandidate[]> {
+export async function discoverCandidates(
+  query: string,
+  cwd: string,
+  preferredAgent?: AgentPlatform,
+  searchOptions?: { owner?: string },
+): Promise<SkillCandidate[]> {
   const results: SkillCandidate[] = [];
 
   if (query.trim()) {
     try {
-      results.push(...await searchSkillsSh(query));
+      results.push(...await searchSkillsSh(query, { owner: searchOptions?.owner }));
     } catch {
       // ignore and continue with other sources
     }

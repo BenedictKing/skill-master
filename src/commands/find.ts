@@ -7,6 +7,7 @@ interface FindFlags {
   json: boolean;
   provider?: CandidateProvider;
   agent?: AgentPlatform;
+  owner?: string;
 }
 
 const MIN_NAME_WIDTH = 50;
@@ -47,6 +48,17 @@ export function parseFindArgs(args: string[]): { query: string; flags: FindFlags
 
     if ((arg === '-a' || arg === '--agent') && args[i + 1]) {
       flags.agent = args[i + 1] as AgentPlatform;
+      i++;
+      continue;
+    }
+
+    if (arg.startsWith('--owner=')) {
+      flags.owner = arg.slice('--owner='.length);
+      continue;
+    }
+
+    if (arg === '--owner' && args[i + 1]) {
+      flags.owner = args[i + 1];
       i++;
       continue;
     }
@@ -130,7 +142,7 @@ export async function find(args: string[]): Promise<void> {
   const { query, flags } = parseFindArgs(args);
 
   if (!query) {
-    console.log('Usage: skill-master find <query> [--provider <provider>] [-a <agent>] [--json]');
+    console.log('Usage: skill-master find <query> [--provider <provider>] [-a <agent>] [--owner <owner>] [--json]');
     console.log('');
     console.log('Search and discover skills from multiple sources.');
     console.log('');
@@ -138,24 +150,35 @@ export async function find(args: string[]): Promise<void> {
     console.log('  skill-master find git');
     console.log('  skill-master find "code review"');
     console.log('  skill-master find "exa search" --provider gh-skill');
+    console.log('  skill-master find cli --owner vercel-labs');
     process.exit(0);
   }
 
   if (!flags.json) {
     const providerSuffix = flags.provider ? ` (provider: ${flags.provider})` : '';
     const agentSuffix = flags.agent ? ` (agent: ${flags.agent})` : '';
-    logger.info(`Searching for "${query}"${providerSuffix}${agentSuffix}...`);
+    const ownerSuffix = flags.owner ? ` (owner: ${flags.owner})` : '';
+    logger.info(`Searching for "${query}"${providerSuffix}${agentSuffix}${ownerSuffix}...`);
   }
 
   try {
-    const candidates = await discoverCandidates(query, process.cwd(), flags.agent);
+    const candidates = await discoverCandidates(query, process.cwd(), flags.agent, { owner: flags.owner });
     const filteredCandidates = flags.provider
       ? candidates.filter((candidate) => candidate.provider === flags.provider)
       : candidates;
-    const sortedCandidates = sortCandidates(filteredCandidates);
+    // --owner：服务端已过滤 skills.sh，其余来源按 source 前缀客户端过滤
+    const ownerFiltered = flags.owner
+      ? filteredCandidates.filter((c) => {
+        const src = c.installHint ?? c.source ?? '';
+        return src.toLowerCase().startsWith(`${flags.owner!.toLowerCase()}/`);
+      })
+      : filteredCandidates;
+    const sortedCandidates = sortCandidates(ownerFiltered);
 
     if (flags.json) {
-      const output: FindJsonV1 = { query, results: sortedCandidates };
+      const output: FindJsonV1 = flags.owner
+        ? { query, owner: flags.owner, results: sortedCandidates }
+        : { query, results: sortedCandidates };
       console.log(JSON.stringify(output, null, 2));
       return;
     }

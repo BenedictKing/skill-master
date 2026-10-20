@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { searchVercelSkills } from '../../src/discovery/providers/vercel.js';
+import { searchSkillsSh } from '../../src/discovery/providers/skills-sh.js';
 import { parseGhSkillOutput, searchGhSkill } from '../../src/discovery/providers/gh-skill.js';
 
 describe('optional external providers', () => {
@@ -93,5 +94,37 @@ describe('optional external providers', () => {
     expect(results[0].provider).toBe('vercel');
     expect(results[0].name).toBe('vercel-react-best-practices');
     expect(results[0].installHint).toBe('vercel-labs/agent-skills@vercel-react-best-practices');
+  });
+});
+
+describe('searchSkillsSh', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('sends the owner param when provided', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ skills: [{ name: 'demo', source: 'acme/demo' }] }), { status: 200 });
+    }));
+
+    const results = await searchSkillsSh('cli', { owner: 'acme' });
+    expect(results[0]?.source).toBe('acme/demo');
+    expect(urls[0]).toContain('q=cli');
+    expect(urls[0]).toContain('owner=acme');
+  });
+
+  it('omits the owner param by default and honors SKILL_MASTER_SKILLS_API_URL', async () => {
+    vi.stubEnv('SKILL_MASTER_SKILLS_API_URL', 'https://registry.example.com/');
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ skills: [] }), { status: 200 });
+    }));
+
+    await searchSkillsSh('x');
+    expect(urls[0]).toBe('https://registry.example.com/api/search?q=x');
   });
 });

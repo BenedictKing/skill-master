@@ -42,6 +42,7 @@ npx skill-master add <source>
 ```bash
 # Discover candidates
 skill-master find "code review"
+skill-master find cli --owner vercel-labs
 skill-master find "code review" --json
 
 # Inspect a source or installed skill

@@ -64,6 +64,13 @@ describe('find command', () => {
     expect(parsed.flags.json).toBe(true);
   });
 
+  it('parses the owner flag in both forms', () => {
+    expect(parseFindArgs(['cli', '--owner', 'acme']).flags.owner).toBe('acme');
+    expect(parseFindArgs(['--owner=acme', 'cli']).flags.owner).toBe('acme');
+    expect(parseFindArgs(['cli']).flags.owner).toBeUndefined();
+    expect(parseFindArgs(['cli', '--owner', 'acme']).query).toBe('cli');
+  });
+
   it('parses inline provider flag', () => {
     const parsed = parseFindArgs(['exa', 'search', '--provider=skills.sh']);
     expect(parsed.query).toBe('exa search');

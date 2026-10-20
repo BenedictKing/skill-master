@@ -10,6 +10,7 @@ import type {
 
 export interface FindJsonV1 {
   query: string;
+  owner?: string;
   results: SkillCandidate[];
 }
 

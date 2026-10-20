@@ -10,8 +10,21 @@ interface SearchSkillsShResponse {
   skills?: SearchSkillsShResult[];
 }
 
-export async function searchSkillsSh(query: string): Promise<SkillCandidate[]> {
-  const url = `https://skills.sh/api/search?q=${encodeURIComponent(query)}`;
+export interface SearchSkillsShOptions {
+  /** 限定来源 owner（跨组织搜索时按服务端 owner= 过滤） */
+  owner?: string;
+}
+
+export function searchSkillsSh(query: string, options: SearchSkillsShOptions = {}): Promise<SkillCandidate[]> {
+  const base = (process.env.SKILL_MASTER_SKILLS_API_URL?.trim() || 'https://skills.sh').replace(/\/+$/, '');
+  const params = new URLSearchParams({ q: query });
+  if (options.owner) params.set('owner', options.owner);
+  const url = `${base}/api/search?${params.toString()}`;
+
+  return requestSkillsSh(url);
+}
+
+async function requestSkillsSh(url: string): Promise<SkillCandidate[]> {
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(10_000),
