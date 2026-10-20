@@ -1,6 +1,6 @@
-import { mkdir, cp, readFile, writeFile, rename, symlink, lstat, rm } from 'node:fs/promises';
+import { mkdir, cp, readFile, writeFile, rename, symlink, lstat, rm, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
@@ -58,6 +58,19 @@ export async function writeText(filePath: string, content: string): Promise<void
 /** Create a symlink, or copy if symlink fails (Windows fallback) */
 export async function symlinkOrCopy(target: string, linkPath: string, forceCopy = false): Promise<'symlink' | 'copy'> {
   await ensureDir(dirname(linkPath));
+
+  // If target and linkPath resolve to the same physical location (e.g. the canonical
+  // store is itself a symlink into an agent's skills dir), removing linkPath would
+  // destroy the canonical content and the new link would point at itself.
+  try {
+    const targetReal = await realpath(target);
+    const linkReal = join(await realpath(dirname(linkPath)), basename(linkPath));
+    if (targetReal === linkReal) {
+      return 'symlink';
+    }
+  } catch {
+    // target or link parent does not exist yet → fall through to normal logic
+  }
 
   // Remove existing link/dir
   await removePath(linkPath);
