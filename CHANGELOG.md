@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17] - 2026-10-20
+
+### Fixed
+- 开启代理（`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`）后 GitHub 安装仍然走直连慢速链路：Node 内置 fetch 不读取代理环境变量。检测到代理变量时 tarball 下载改用 `curl`（原生支持代理，TTY 下显示进度条），curl 不可用时回退内置 fetch
+- GitHub tarball 下载超时后直接报错终止：现在会打 warning 并自动回退 `git clone` 重试（git 同样原生支持代理），两者都超时才报错并提示 `SKILL_MASTER_CLONE_TIMEOUT_MS`（`src/core/git-source.ts`）
+
 ## [0.1.16] - 2026-09-05
 
 ### Fixed

@@ -101,6 +101,8 @@ skill-master add https://github.com/user/skill --copy
 
 大型 GitHub skill 合集（数百 MB）以前会在第 1 步失败：`git clone --depth 1` 被硬限制在 60 秒。现在 `add` 会先下 GitHub tarball，失败再回退 git clone，默认超时 5 分钟。可用 `SKILL_MASTER_CLONE_TIMEOUT_MS` 覆盖，或先本地 clone 再传路径安装。
 
+设置了 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` 时，tarball 下载会改用 `curl`（Node 内置 fetch 不读取这些变量），并在终端显示进度条；tarball 下载超时后会自动回退 git clone 再试一次。
+
 ### 验证与组合
 
 ```bash

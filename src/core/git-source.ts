@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createWriteStream, existsSync } from 'node:fs';
 import { unlink } from 'node:fs/promises';
@@ -310,7 +310,9 @@ export async function cloneRepo(
       const archive = await tryGithubArchive(identity.ownerRepo, tempDir, branch, timeout);
       if (archive === 'ok') return tempDir;
       if (archive === 'timeout') {
-        throw Object.assign(new Error('archive timed out'), { name: 'TimeoutError' });
+        logger.warn(
+          `GitHub tarball download timed out after ${Math.round(timeout / 1000)}s, retrying via git clone...`,
+        );
       }
       await removePath(tempDir).catch(() => {});
     }
@@ -329,6 +331,76 @@ export async function cloneRepo(
 
 type ArchiveResult = 'ok' | 'skip' | 'timeout';
 
+const PROXY_ENV_KEYS = [
+  'HTTPS_PROXY',
+  'https_proxy',
+  'HTTP_PROXY',
+  'http_proxy',
+  'ALL_PROXY',
+  'all_proxy',
+] as const;
+
+function hasProxyEnv(): boolean {
+  return PROXY_ENV_KEYS.some((key) => !!process.env[key]);
+}
+
+/** curl exit code 28 = --max-time exceeded; treat like a killed timeout. */
+const CURL_TRANSFER_TIMEOUT_EXIT = 28;
+
+function runCurl(args: string[], timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const showProgress = process.stderr.isTTY === true;
+    const child = spawn('curl', args, {
+      stdio: ['ignore', 'ignore', showProgress ? 'inherit' : 'ignore'],
+    });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(Object.assign(new Error('curl timed out'), { killed: true }));
+    }, timeoutMs + 5_000);
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on('exit', (code, signal) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve();
+      } else if (code === CURL_TRANSFER_TIMEOUT_EXIT) {
+        reject(Object.assign(new Error('curl --max-time exceeded'), { killed: true }));
+      } else {
+        reject(Object.assign(new Error(`curl exited with code ${code ?? signal}`), { code: code ?? undefined }));
+      }
+    });
+  });
+}
+
+/**
+ * Node's global fetch ignores HTTP(S)_PROXY env vars, so a configured proxy
+ * silently never applies to tarball downloads. curl honors them natively.
+ * Returns false only when curl is unavailable (caller falls back to fetch).
+ */
+async function downloadArchiveViaCurl(url: string, dest: string, timeoutMs: number): Promise<boolean> {
+  const args = [
+    '-fsSL',
+    '--connect-timeout', '15',
+    '--max-time', String(Math.ceil(timeoutMs / 1000)),
+    '-o', dest,
+  ];
+  if (process.stderr.isTTY !== true) args.push('-sS');
+  args.push(url);
+
+  try {
+    await runCurl(args, timeoutMs);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      logger.debug('curl not found; falling back to built-in fetch (proxy env will not apply)');
+      return false;
+    }
+    throw err;
+  }
+  return existsSync(dest);
+}
+
 async function tryGithubArchive(
   ownerRepo: string,
   tempDir: string,
@@ -341,16 +413,22 @@ async function tryGithubArchive(
 
   try {
     await ensureDir(tempDir);
-    const res = await fetch(archiveUrl, {
-      signal: AbortSignal.timeout(timeout),
-      headers: { 'user-agent': 'skill-master' },
-    });
-    if (!res.ok || !res.body) {
-      logger.debug(`GitHub archive HTTP ${res.status} for ${ownerRepo}@${ref}`);
-      return 'skip';
+    let downloaded = false;
+    if (hasProxyEnv()) {
+      downloaded = await downloadArchiveViaCurl(archiveUrl, archivePath, timeout);
+    }
+    if (!downloaded) {
+      const res = await fetch(archiveUrl, {
+        signal: AbortSignal.timeout(timeout),
+        headers: { 'user-agent': 'skill-master' },
+      });
+      if (!res.ok || !res.body) {
+        logger.debug(`GitHub archive HTTP ${res.status} for ${ownerRepo}@${ref}`);
+        return 'skip';
+      }
+      await pipeline(Readable.fromWeb(res.body), createWriteStream(archivePath));
     }
 
-    await pipeline(Readable.fromWeb(res.body), createWriteStream(archivePath));
     await execFileAsync('tar', ['-xzf', archivePath, '-C', tempDir, '--strip-components', '1'], { timeout });
     await unlink(archivePath).catch(() => {});
     logger.debug(`GitHub archive materialized ${ownerRepo}@${ref}`);

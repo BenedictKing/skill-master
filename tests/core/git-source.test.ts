@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { gzipSync } from 'node:zlib';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
 const tempDirs: string[] = [];
+let savedPath: string | undefined;
 
 vi.mock('../../src/utils/fs-helpers.js', async () => {
   const actual = await vi.importActual<typeof import('../../src/utils/fs-helpers.js')>(
@@ -180,11 +181,25 @@ describe('getLockSource', () => {
 describe('cloneRepo', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    if (savedPath) {
+      process.env.PATH = savedPath;
+      savedPath = undefined;
+    }
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  function makeFakeBin(): string {
+    const dir = join(tmpdir(), `skill-master-fakebin-${randomBytes(4).toString('hex')}`);
+    mkdirSync(dir, { recursive: true });
+    tempDirs.push(dir);
+    savedPath = process.env.PATH;
+    process.env.PATH = `${dir}:${process.env.PATH}`;
+    return dir;
+  }
 
   it('materializes a GitHub tarball instead of git clone', async () => {
     const tgz = gzipSync(Buffer.from(buildTar([
@@ -203,11 +218,55 @@ describe('cloneRepo', () => {
     expect(existsSync(join(dir, '.skill-master-archive.tgz'))).toBe(false);
   });
 
-  it('hints how to raise the budget when GitHub archive times out', async () => {
+  it('falls back to git clone when the GitHub archive times out, hinting the budget if git also times out', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
     }));
+    vi.stubEnv('SKILL_MASTER_CLONE_TIMEOUT_MS', '1500');
 
-    await expect(cloneRepo('owner/repo')).rejects.toThrow(/timed out after 300s.*SKILL_MASTER_CLONE_TIMEOUT_MS=600000/);
-  });
+    const fakeBin = makeFakeBin();
+    writeFileSync(join(fakeBin, 'git'), '#!/bin/sh\nexec sleep 30\n', { mode: 0o755 });
+
+    await expect(cloneRepo('owner/repo')).rejects.toThrow(
+      /timed out after \d+s\..*SKILL_MASTER_CLONE_TIMEOUT_MS=\d+/s,
+    );
+  }, 20_000);
+
+  it.skipIf(process.platform === 'win32')(
+    'downloads the GitHub archive via curl when proxy env is set, so HTTP(S)_PROXY is honored',
+    async () => {
+      const tgz = gzipSync(Buffer.from(buildTar([
+        { path: 'repo-main/SKILL.md', content: '---\nname: proxied\n---\n# proxied\n' },
+      ])));
+
+      const fakeBin = makeFakeBin();
+      const logPath = join(fakeBin, 'curl-args.json');
+      writeFileSync(
+        join(fakeBin, 'curl'),
+        [
+          '#!/usr/bin/env node',
+          'const fs = require("node:fs");',
+          'const args = process.argv.slice(2);',
+          `fs.writeFileSync(${JSON.stringify(logPath)}, JSON.stringify(args));`,
+          'const out = args[args.indexOf("-o") + 1];',
+          'fs.writeFileSync(out, Buffer.from(process.env.FAKE_CURL_TGZ, "base64"));',
+        ].join('\n'),
+        { mode: 0o755 },
+      );
+
+      vi.stubEnv('HTTPS_PROXY', 'http://127.0.0.1:7890');
+      vi.stubEnv('FAKE_CURL_TGZ', tgz.toString('base64'));
+      vi.stubGlobal('fetch', vi.fn(async () => {
+        throw new Error('built-in fetch must not be used when curl download succeeds');
+      }));
+
+      const dir = await cloneRepo('https://github.com/owner/repo.git');
+      expect(readFileSync(join(dir, 'SKILL.md'), 'utf-8')).toContain('name: proxied');
+      expect(existsSync(join(dir, '.skill-master-archive.tgz'))).toBe(false);
+
+      const curlArgs: string[] = JSON.parse(readFileSync(logPath, 'utf-8'));
+      expect(curlArgs[curlArgs.length - 1]).toBe('https://codeload.github.com/owner/repo/tar.gz/HEAD');
+      expect(curlArgs).toContain('-o');
+    },
+  );
 });

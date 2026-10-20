@@ -103,6 +103,8 @@ For local skill development and testing:
 
 Large GitHub skill collections (hundreds of megabytes) used to fail at step 1 because `git clone --depth 1` was hard-capped at 60 seconds. `add` now downloads a GitHub tarball first, then falls back to git clone with a 5-minute budget. Override with `SKILL_MASTER_CLONE_TIMEOUT_MS`, or clone the repo yourself and pass the local path.
 
+When `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` is set, the tarball download runs through `curl` (Node's built-in fetch ignores these variables) and shows a progress bar on TTY. If the tarball download times out, skill-master retries via git clone before giving up.
+
 ### Verify and Compose
 
 ```bash
