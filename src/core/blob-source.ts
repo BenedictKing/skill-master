@@ -162,9 +162,34 @@ export async function fetchRepoTree(
     if (result.authRetryable) { authRetryable = true; break; }
   }
 
-  if (!getToken || !(rateLimited || authRetryable)) return null;
+  if (!(rateLimited || authRetryable)) return null;
   if (rateLimited) rateLimitedThisSession = true;
-  return fetchTreeWithToken(ownerRepo, branches, getToken);
+
+  // 档位 2：显式 token（调用方注入，通常来自 GITHUB_TOKEN/GH_TOKEN）
+  if (getToken) {
+    const tree = await fetchTreeWithToken(ownerRepo, branches, getToken);
+    if (tree) return tree;
+  }
+
+  // 档位 3：gh api 子进程 —— gh 自行注入凭证，Node 不接触
+  return fetchTreeViaGh(ownerRepo, branches);
+}
+
+/** gh api 档：gh 缺失或被 SKILL_MASTER_GH_API=0 关闭时返回 null。 */
+async function fetchTreeViaGh(ownerRepo: string, branches: string[]): Promise<RepoTree | null> {
+  const { ghApiJson } = await import('./github-auth.js');
+  for (const branch of branches) {
+    const result = await ghApiJson<{ sha: string; tree: TreeEntry[]; truncated?: boolean }>(
+      `repos/${ownerRepo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+    );
+    if (!result?.data) continue;
+    if (result.data.truncated) {
+      logger.debug('GitHub tree response truncated, falling back to clone');
+      return null;
+    }
+    return { sha: result.data.sha, branch, tree: result.data.tree };
+  }
+  return null;
 }
 
 // ─── SKILL.md 路径发现 ───

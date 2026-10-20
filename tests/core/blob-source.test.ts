@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomBytes } from 'node:crypto';
 import {
   toSkillSlug,
   findSkillMdPaths,
@@ -94,7 +96,12 @@ describe('findSkillMdPaths', () => {
 });
 
 describe('fetchRepoTree', () => {
-  beforeEach(() => resetRepoTreeAuthState());
+  beforeEach(() => {
+    resetRepoTreeAuthState();
+    // 默认禁用 gh api 档，防止测试意外调用真实 gh/GitHub；专门用例自行覆盖
+    vi.stubEnv('SKILL_MASTER_GH_API', '0');
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it('returns tree on anonymous success without calling getToken', async () => {
     const getToken = vi.fn(() => 'tok');
@@ -135,6 +142,41 @@ describe('fetchRepoTree', () => {
     await fetchRepoTree('o/r', 'mybranch');
     expect(urls[0]).toContain('mybranch');
   });
+
+  it.skipIf(process.platform === 'win32')(
+    'falls back to the gh api subprocess rung for private repos (401) without a token',
+    async () => {
+      vi.stubEnv('SKILL_MASTER_GH_API', '1');
+      vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({}, 404)));
+
+      const fakeBin = join(tmpdir(), `skill-master-ghbin-${randomBytes(4).toString('hex')}`);
+      mkdirSync(fakeBin, { recursive: true });
+      const logPath = join(fakeBin, 'gh-args.json');
+      writeFileSync(
+        join(fakeBin, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const fs = require("node:fs");',
+          'const args = process.argv.slice(2);',
+          `fs.writeFileSync(${JSON.stringify(logPath)}, JSON.stringify(args));`,
+          'process.stdout.write(JSON.stringify({ sha: "s", tree: [{ path: "SKILL.md", type: "blob", sha: "x" }] }));',
+        ].join('\n'),
+        { mode: 0o755 },
+      );
+      const savedPath = process.env.PATH;
+      process.env.PATH = `${fakeBin}:${savedPath}`;
+
+      try {
+        const tree = await fetchRepoTree('private/repo');
+        expect(tree?.tree[0]?.path).toBe('SKILL.md');
+        const ghArgs: string[] = JSON.parse(readFileSync(logPath, 'utf-8'));
+        expect(ghArgs).toEqual(['api', 'repos/private/repo/git/trees/HEAD?recursive=1']);
+      } finally {
+        process.env.PATH = savedPath;
+        rmSync(fakeBin, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe('tryBlobMaterialize', () => {

@@ -10,6 +10,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { cloneRepo, parseSource } from './git-source.js';
 import { tryBlobMaterialize } from './blob-source.js';
+import { getExplicitGhToken } from './github-auth.js';
 import { fetchAllWellKnownSkills, materializeWellKnownSkills } from './wellknown-source.js';
 import { findAllSkillDirectoriesWithPlugins, readSkillMd } from './skill-parser.js';
 import { removePath } from '../utils/fs-helpers.js';
@@ -125,7 +126,7 @@ export async function materializeUseSkill(source: string, options: UseOptions = 
 async function fetchGitSource(url: string, ref?: string, subpath?: string, skillFilter?: string): Promise<{ dir: string; cloneRoot?: string }> {
   const ownerRepo = url.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
   if (ownerRepo) {
-    const blob = await tryBlobMaterialize(`${ownerRepo[1]}/${ownerRepo[2]}`, { subpath, skillFilter, ref });
+    const blob = await tryBlobMaterialize(`${ownerRepo[1]}/${ownerRepo[2]}`, { subpath, skillFilter, ref, getToken: getExplicitGhToken });
     if (blob) {
       // blob 快路径也需要应用 subpath 窄化
       if (subpath) {
