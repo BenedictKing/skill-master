@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.18] - 2026-10-20
+
+### Added
+- 新增 5 个 agent 支持：Kimi Code（`~/.kimi-code/skills`，支持 `KIMI_CODE_HOME` 覆盖）、MiniMax Code / mcode（`~/.minimax/skills`，支持 `MINIMAX_DATA_DIR` 覆盖；`~/.mavis` 为其内部代号兼容软链）、Mirasim、Kukuai、WorkBuddy（`src/platform/agents.ts`）
+- **npm skills 同步生态**（对标 vercel-labs/skills `experimental_sync`）：`sync` 命令支持 package.json `skills` 字段声明式安装（`npm:pkg`、`npm:@scope/pkg/sub`、`owner/repo`、`owner/repo#ref` 四种条目），node_modules 扫描支持多 skill 包（`skills/`、`dist/skills/`），新增 `--include`/`--exclude` 过滤与 `--recursive` workspace 递归，依赖消失的 skill 自动清理（git 来源不自动清理）（`src/core/skills-field.ts`、`src/commands/sync.ts`）
+- **直接 URL 安装**（对标上游 v1.5.21）：`add https://example.com/skill.tgz` 无需 git/well-known 直接装单个 SKILL.md 或 zip/tar.gz 归档，识别 codeload tarball 与 GitHub Release 资产 URL，代理环境走 curl，下载上限默认 10 MiB（`SKILL_MASTER_DOWNLOAD_MAX_BYTES` 覆盖），解压复用 well-known 加固解压器（`src/core/download-source.ts`）
+- **私有仓库认证阶梯**（对标上游 PR #1857）：GitHub API（blob 快路径）匿名 → 环境变量 token（`GITHUB_TOKEN`/`GH_TOKEN`）→ `gh api` 子进程（execFile 无 shell，Node 不接触 gh 存储的凭证），401/404/限流后进程内跳过匿名档，全部失败回退认证 git clone；`SKILL_MASTER_GH_API=0` 可关闭 gh 档（`src/core/github-auth.ts`）
+
+### Fixed
+- `symlinkOrCopy` 增加同址保护：当 agent 链接路径与 canonical 存储解析到同一物理目录时（如 canonical `~/.agents/skills` 本身是指向某 agent skills 目录的软链），不再先删后链导致 canonical 内容被清空并产生自引用软链环（`src/utils/fs-helpers.ts`）
+- 测试基础设施：`runCli` 子进程默认隔离 HOME 到临时目录，修复并行测试文件并发读写真实 `~/.agents/registry.json` 导致的 `add` 间歇性失败，并消除测试夹具污染开发者真实 skill 库的问题（`tests/test-utils.ts`）
+
 ## [0.1.17] - 2026-10-20
 
 ### Fixed

@@ -17,7 +17,7 @@ Cross-platform skill lifecycle manager for AI coding agents. It still installs a
 ## Features
 
 - ✅ **Smart .env Management** — Auto backup/restore environment variables during updates
-- ✅ **Multi-Platform Support** — 39 AI coding agents including Claude Code, Cursor, Cline, Windsurf, OpenCode and more
+- ✅ **Multi-Platform Support** — 50 AI coding agents including Claude Code, Cursor, Cline, Windsurf, OpenCode and more
 - ✅ **npx skills Compatible** — Drop-in replacement with same command interface
 - ✅ **Unified Directory** — Centralized management in `~/.agents/`
 - ✅ **Atomic Operations** — Auto rollback on failure
@@ -92,6 +92,11 @@ skill-master add owner/repo -a claude-code cursor
 
 # Copy mode (recommended for Windows)
 skill-master add owner/repo --copy
+
+# Direct download URL: single SKILL.md or .zip/.tgz/.tar.gz archive
+skill-master add https://example.com/skill.tgz
+skill-master add https://example.com/SKILL.md
+skill-master add https://github.com/user/repo/releases/download/v1/skill.zip
 ```
 
 For local skill development and testing:
@@ -104,6 +109,12 @@ For local skill development and testing:
 Large GitHub skill collections (hundreds of megabytes) used to fail at step 1 because `git clone --depth 1` was hard-capped at 60 seconds. `add` now downloads a GitHub tarball first, then falls back to git clone with a 5-minute budget. Override with `SKILL_MASTER_CLONE_TIMEOUT_MS`, or clone the repo yourself and pass the local path.
 
 When `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` is set, the tarball download runs through `curl` (Node's built-in fetch ignores these variables) and shows a progress bar on TTY. If the tarball download times out, skill-master retries via git clone before giving up.
+
+Direct download URLs (`.md`, `.zip`, `.tgz`, `.tar.gz`, including `codeload.github.com` tarballs and GitHub release assets) are fetched without git, honored through the same proxy handling. Downloads are capped at 10 MiB by default — override with `SKILL_MASTER_DOWNLOAD_MAX_BYTES`; extraction reuses the hardened well-known extractor (path-traversal, symlink, and decompression-bomb protections).
+
+### Private Repositories
+
+GitHub API access (the blob fast path) uses an auth ladder: anonymous → explicit env token (`GITHUB_TOKEN`/`GH_TOKEN`) → `gh api` subprocess (execFile, no shell). The Node process never reads credentials stored by the `gh` CLI — the gh subprocess injects its own auth. After a 401/404/rate-limit, anonymous attempts are skipped for the rest of the process. Whatever the API ladder cannot see falls back to an authenticated `git clone` (via your configured git credential helper). Set `SKILL_MASTER_GH_API=0` to disable the gh subprocess rung.
 
 ### Verify and Compose
 
@@ -142,6 +153,33 @@ skill-master remove my-skill
 # Remove with config purge
 skill-master remove my-skill --purge
 ```
+
+### Sync npm Skills
+
+`sync` installs skills shipped inside `node_modules` and skills declared in the package.json `skills` field, keeping them in sync with your dependencies. Skills whose source disappears (dependency removed) are cleaned up automatically.
+
+```bash
+# Scan node_modules + the skills field and sync
+skill-master sync
+
+# Declare skill dependencies in package.json
+{
+  "skills": {
+    "my-skill": "npm:some-pkg",              // package with a root SKILL.md
+    "inner": "npm:@scope/pkg/inner-skill",   // select one skill of a multi-skill package
+    "from-git": "owner/repo",                 // git source, installs all skills in the repo
+    "pinned": "owner/repo#v1.2.0"             // git source pinned to a ref
+  }
+}
+
+# Only sync specific skills / skip some
+skill-master sync --include my-skill --exclude other-skill
+
+# Also read the skills field of workspace packages
+skill-master sync --recursive
+```
+
+Packages can ship a single skill (`<pkg>/SKILL.md`) or multiple skills (`<pkg>/skills/*/SKILL.md`, `<pkg>/dist/skills/*/SKILL.md`). `npm:` entries require the package to be installed first (`npm install`); `sync` re-runs cleanly — unchanged skills are skipped by content hash, and git sources refresh via `skill-master update`.
 
 ### Other Commands
 
@@ -209,7 +247,7 @@ skill-master update    # or: upgrade
 
 ## Supported Platforms
 
-39 AI coding agents are supported. Auto-detection works for agents with a project directory marker:
+50 AI coding agents are supported. Auto-detection works for agents with a project directory marker:
 
 | Platform | Detection | Skills Directory |
 |----------|-----------|------------------|
@@ -224,11 +262,13 @@ skill-master update    # or: upgrade
 | Goose | `.goose/` | `.goose/skills/` |
 | Kode | `.kode/` | `.kode/skills/` |
 | Trae | `.trae/` | `.trae/skills/` |
+| Kimi Code | `.kimi-code/` | `.kimi-code/skills/` |
+| MiniMax Code | `.minimax/` | `.minimax/skills/` |
 
 <details>
-<summary>All 39 supported agents</summary>
+<summary>All 50 supported agents</summary>
 
-Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, Zencoder, Neovate, Pochi, AdaL
+Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code, Kimi Code CLI, Kiro CLI, Kode, Kukuai, MCPJam, MiniMax Code, Mirasim, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, WorkBuddy, Zencoder, Neovate, Pochi, AdaL
 
 </details>
 
@@ -245,7 +285,7 @@ See [docs/skill-lifecycle-platform.md](./docs/skill-lifecycle-platform.md) for t
 | Feature | npx skills | skill-master |
 |---------|-----------|---------------|
 | .env Protection | ❌ Deleted on update | ✅ Auto backup/restore |
-| Multi-Platform | ❌ Claude Code only | ✅ 39 platforms |
+| Multi-Platform | ❌ Claude Code only | ✅ 50 platforms |
 | Config Management | ❌ None | ✅ env commands |
 | Diagnostics | ❌ None | ✅ doctor command |
 | Discovery & Recommendation | ❌ Minimal | ✅ Multi-source + recommend |

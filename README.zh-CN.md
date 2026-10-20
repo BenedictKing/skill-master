@@ -90,6 +90,11 @@ skill-master add https://github.com/user/skill --agent=cursor
 
 # 使用复制而非符号链接（Windows 推荐）
 skill-master add https://github.com/user/skill --copy
+
+# 直接下载 URL：单个 SKILL.md 或 .zip/.tgz/.tar.gz 归档
+skill-master add https://example.com/skill.tgz
+skill-master add https://example.com/SKILL.md
+skill-master add https://github.com/user/repo/releases/download/v1/skill.zip
 ```
 
 用于本地开发和测试 skill 时：
@@ -102,6 +107,12 @@ skill-master add https://github.com/user/skill --copy
 大型 GitHub skill 合集（数百 MB）以前会在第 1 步失败：`git clone --depth 1` 被硬限制在 60 秒。现在 `add` 会先下 GitHub tarball，失败再回退 git clone，默认超时 5 分钟。可用 `SKILL_MASTER_CLONE_TIMEOUT_MS` 覆盖，或先本地 clone 再传路径安装。
 
 设置了 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` 时，tarball 下载会改用 `curl`（Node 内置 fetch 不读取这些变量），并在终端显示进度条；tarball 下载超时后会自动回退 git clone 再试一次。
+
+直接下载 URL（`.md`、`.zip`、`.tgz`、`.tar.gz`，含 `codeload.github.com` tarball 与 GitHub Release 资产）无需 git 即可安装，同样走上述代理逻辑。下载体积默认上限 10 MiB，可用 `SKILL_MASTER_DOWNLOAD_MAX_BYTES` 覆盖；解压复用 well-known 的加固解压器（防路径穿越/符号链接/压缩炸弹）。
+
+### 私有仓库
+
+GitHub API 访问（blob 快路径）使用认证阶梯：匿名 → 显式环境变量 token（`GITHUB_TOKEN`/`GH_TOKEN`）→ `gh api` 子进程（execFile、无 shell）。Node 进程永远不会读取 gh CLI 存储的凭证——认证由 gh 子进程自行注入；遇到 401/404/限流后，本次进程内跳过匿名档。API 阶梯全部失败时回退认证 `git clone`（走你配置的 git 凭证助手）。`SKILL_MASTER_GH_API=0` 可关闭 gh 子进程档。
 
 ### 验证与组合
 
@@ -140,6 +151,33 @@ skill-master remove tavily-web
 # 删除 skill 并清除配置
 skill-master remove tavily-web --purge
 ```
+
+### 同步 npm Skills
+
+`sync` 安装 node_modules 里自带 skill 的依赖包，以及 package.json `skills` 字段声明的技能，并随依赖保持同步；依赖消失（卸载）的 skill 会被自动清理。
+
+```bash
+# 扫描 node_modules + skills 字段并同步
+skill-master sync
+
+# 在 package.json 中声明技能依赖
+{
+  "skills": {
+    "my-skill": "npm:some-pkg",              // 根目录带 SKILL.md 的包
+    "inner": "npm:@scope/pkg/inner-skill",   // 从多 skill 包中选择一个
+    "from-git": "owner/repo",                 // git 来源，安装仓库内全部 skill
+    "pinned": "owner/repo#v1.2.0"             // git 来源固定到指定 ref
+  }
+}
+
+# 只同步指定 skill / 跳过某些 skill
+skill-master sync --include my-skill --exclude other-skill
+
+# 同时读取 workspace 子包的 skills 字段
+skill-master sync --recursive
+```
+
+包可以发布单个 skill（`<pkg>/SKILL.md`）或多个 skill（`<pkg>/skills/*/SKILL.md`、`<pkg>/dist/skills/*/SKILL.md`）。`npm:` 条目要求包已安装（先 `npm install`）；`sync` 可重复执行——内容哈希未变的 skill 自动跳过，git 来源用 `skill-master update` 刷新。
 
 ### 查看信息
 
@@ -192,7 +230,7 @@ skill-master solve "<task>" --json
 
 ## 支持的平台
 
-支持 39 个 AI 编程代理。具有项目目录标记的代理支持自动检测：
+支持 50 个 AI 编程代理。具有项目目录标记的代理支持自动检测：
 
 | 平台 | 检测标识 | Skills 目录 |
 |------|---------|------------|
@@ -207,11 +245,13 @@ skill-master solve "<task>" --json
 | Goose | `.goose/` | `.goose/skills/` |
 | Kode | `.kode/` | `.kode/skills/` |
 | Trae | `.trae/` | `.trae/skills/` |
+| Kimi Code | `.kimi-code/` | `.kimi-code/skills/` |
+| MiniMax Code | `.minimax/` | `.minimax/skills/` |
 
 <details>
-<summary>全部 39 个支持的代理</summary>
+<summary>全部 50 个支持的代理</summary>
 
-Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code CLI, Kiro CLI, Kode, MCPJam, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, Zencoder, Neovate, Pochi, AdaL
+Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code, Kimi Code CLI, Kiro CLI, Kode, Kukuai, MCPJam, MiniMax Code, Mirasim, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, WorkBuddy, Zencoder, Neovate, Pochi, AdaL
 
 </details>
 
@@ -240,7 +280,7 @@ skill-master update    # 或: upgrade
 | 特性 | npx skills | skill-master |
 |------|-----------|---------------|
 | .env 保护 | ❌ 每次更新被删除 | ✅ 自动备份恢复 |
-| 跨平台支持 | ❌ 仅 Claude Code | ✅ 39 个平台 |
+| 跨平台支持 | ❌ 仅 Claude Code | ✅ 50 个平台 |
 | 配置管理 | ❌ 无 | ✅ env 子命令 |
 | 诊断工具 | ❌ 无 | ✅ doctor 命令 |
 | 发现与推荐 | ❌ 很弱 | ✅ 多源发现 + recommend |
