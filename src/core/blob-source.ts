@@ -56,7 +56,7 @@ const FETCH_TIMEOUT = 10_000;
  * Blob 快路径白名单 owner（小写）。命中才尝试 blob，其余直接走 clone。
  * 可通过 SKILL_MASTER_BLOB_OWNERS 环境变量追加（逗号分隔）。
  */
-const DEFAULT_BLOB_OWNERS = ['vercel', 'vercel-labs', 'heygen-com'];
+const DEFAULT_BLOB_OWNERS = ['vercel', 'vercel-labs', 'heygen-com', 'remotion-dev'];
 
 function getBlobOwnerAllowlist(): Set<string> {
   const extra = (process.env.SKILL_MASTER_BLOB_OWNERS ?? '')
