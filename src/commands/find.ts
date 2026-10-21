@@ -2,6 +2,7 @@ import { discoverCandidates } from '../discovery/search.js';
 import type { FindJsonV1 } from '../types/contracts.js';
 import type { AgentPlatform, CandidateProvider, SkillCandidate } from '../types/index.js';
 import * as logger from '../utils/logger.js';
+import { stripTerminalEscapes } from '../utils/sanitize.js';
 
 interface FindFlags {
   json: boolean;
@@ -15,7 +16,7 @@ const MIN_INSTALL_HINT_WIDTH = 80;
 const MIN_PROVIDER_WIDTH = 12;
 
 function padCell(value: string, width: number): string {
-  return value.padEnd(width);
+  return stripTerminalEscapes(value).padEnd(width);
 }
 
 export function parseFindArgs(args: string[]): { query: string; flags: FindFlags } {
