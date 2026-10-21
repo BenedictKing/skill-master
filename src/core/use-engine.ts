@@ -9,11 +9,13 @@ import { readFile } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { cloneRepo, parseSource } from './git-source.js';
+import { directDownloadKind, materializeDirectDownload } from './download-source.js';
 import { tryBlobMaterialize } from './blob-source.js';
 import { getExplicitGhToken } from './github-auth.js';
 import { fetchAllWellKnownSkills, materializeWellKnownSkills } from './wellknown-source.js';
 import { findAllSkillDirectoriesWithPlugins, readSkillMd } from './skill-parser.js';
 import { removePath } from '../utils/fs-helpers.js';
+import * as logger from '../utils/logger.js';
 import type { AgentPlatform } from '../platform/agents.js';
 
 export interface UseOptions {
@@ -82,11 +84,24 @@ export async function materializeUseSkill(source: string, options: UseOptions = 
   let cloneRoot: string | undefined;
 
   if (parsed.type === 'git') {
-    const result = await fetchGitSource(parsed.url!, parsed.ref, parsed.subpath, parsed.skillFilter ?? options.skill);
-    sourceDir = result.dir;
-    cloneRoot = result.cloneRoot;
+    // git-host 归档 URL（release 资产、codeload tarball、raw 文件）先走直接下载
+    const downloaded = await tryDirectDownload(parsed.url!, parsed.subpath);
+    if (downloaded) {
+      sourceDir = downloaded;
+      cloneRoot = downloaded;
+    } else {
+      const result = await fetchGitSource(parsed.url!, parsed.ref, parsed.subpath, parsed.skillFilter ?? options.skill);
+      sourceDir = result.dir;
+      cloneRoot = result.cloneRoot;
+    }
   } else if (parsed.type === 'well-known') {
-    sourceDir = await fetchWellKnownSource(parsed.url!);
+    const downloaded = await tryDirectDownload(parsed.url!, parsed.subpath);
+    if (downloaded) {
+      sourceDir = downloaded;
+      cloneRoot = downloaded;
+    } else {
+      sourceDir = await fetchWellKnownSource(parsed.url!);
+    }
   } else {
     sourceDir = resolve(parsed.path!);
     if (!existsSync(sourceDir)) {
@@ -120,6 +135,25 @@ export async function materializeUseSkill(source: string, options: UseOptions = 
     if (cleanupDir) await removePath(cleanupDir).catch(() => {});
     throw err;
   }
+}
+
+/** 直接下载 URL（.md/.zip/.tgz/.tar.gz）：物化到临时目录并应用 subpath，非下载 URL 返回 null。 */
+async function tryDirectDownload(url: string, subpath?: string): Promise<string | null> {
+  if (!directDownloadKind(url)) return null;
+  let dir: string;
+  try {
+    dir = await materializeDirectDownload(url);
+  } catch (err) {
+    logger.warn(`Direct download failed: ${(err as Error).message}`);
+    return null;
+  }
+  if (subpath) {
+    const sub = join(dir, subpath);
+    if (existsSync(sub)) return sub;
+    await removePath(dir).catch(() => {});
+    throw new Error(`Subpath not found in downloaded archive: ${subpath}`);
+  }
+  return dir;
 }
 
 /** git 来源：白名单先试 blob 快路径，失败回退 clone，再应用 subpath。 */

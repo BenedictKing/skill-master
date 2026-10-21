@@ -78,6 +78,9 @@ function printUseHelp(): void {
   console.log('Use a skill without installing it. Prints the skill prompt to stdout,');
   console.log('or launches an agent with the skill loaded.');
   console.log('');
+  console.log('Sources: owner/repo, git URL, local path, or direct download URL');
+  console.log('(.md / .zip / .tgz / .tar.gz, incl. codeload tarballs and release assets).');
+  console.log('');
   console.log('Options:');
   console.log('  -h, --help          Show this help message');
   console.log('  -s, --skill <name>  Select a skill when the source has multiple');
