@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `use` 命令支持直接下载 URL（`.md`/`.zip`/`.tgz`/`.tar.gz`，含 codeload tarball 与 Release 资产），下载失败回退原有 blob/well-known/clone 链路（`src/core/use-engine.ts`）
 
 ### Changed
+- blob 快路径白名单对齐上游补入 remotion-dev
 - CI `publish.yml` 升级 `actions/checkout@v5`、`actions/setup-node@v5`（@v4 依赖的 Node 20 已被 GitHub 强制跑在 Node 24 并警告弃用）
 
 ## [0.1.18] - 2026-10-21
