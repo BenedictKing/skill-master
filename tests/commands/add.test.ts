@@ -215,7 +215,9 @@ describe('add command', () => {
 
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(configHome, 'opencode', 'skills', 'add-me'))).toBe(true);
-    expect(existsSync(join(env.CODEX_HOME, 'skills', 'add-me'))).toBe(true);
+    // codex 全局目录即共享存储 ~/.agents/skills（= canonical），不再另建 ~/.codex/skills 软链
+    expect(existsSync(join(env.CODEX_HOME, 'skills', 'add-me'))).toBe(false);
+    expect(existsSync(join(testHome, '.agents', 'skills', 'add-me'))).toBe(true);
     expect(existsSync(join(env.CLAUDE_CONFIG_DIR, 'skills', 'add-me'))).toBe(true);
     expect((result.stdout.match(/\[1\/9\] Fetching skill source\.\.\./g) ?? []).length).toBe(1);
     expect((result.stdout.match(/Installed to /g) ?? []).length).toBe(1);

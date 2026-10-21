@@ -1,7 +1,7 @@
 import { getRegistryEntry, removeFromRegistry, removeAgentFromRegistry, listRegistry, findSkillsBySource } from '../core/registry.js';
 import { removeSkillFromLocalLock } from '../core/local-lock.js';
 import { resolveProjectCwd } from '../core/project-root.js';
-import { removePath } from '../utils/fs-helpers.js';
+import { isSamePhysicalPath, removePath } from '../utils/fs-helpers.js';
 import { getSkillCanonicalPath, getSkillConfigPath, getAgentGlobalSkillPath } from '../utils/paths.js';
 import { confirm } from '../utils/prompt.js';
 import * as logger from '../utils/logger.js';
@@ -204,8 +204,14 @@ export async function remove(args: string[]): Promise<void> {
             logger.warn(`Agent "${agentName}" not found for skill "${skillName}"`);
             continue;
           }
-          await removePath(agentRecord.agent_path);
-          logger.success(`Removed ${agentName} path: ${agentRecord.agent_path}`);
+          // 共享目录 agent（如 Codex 读 ~/.agents/skills）的 agent 路径就是 canonical 本身：
+          // 只解除登记，不删文件，否则其他 agent 的软链会一起失效
+          if (await isSamePhysicalPath(agentRecord.agent_path, entry.canonical_path)) {
+            logger.info(`${agentName} reads the shared store directly; unregistered without deleting ${agentRecord.agent_path}`);
+          } else {
+            await removePath(agentRecord.agent_path);
+            logger.success(`Removed ${agentName} path: ${agentRecord.agent_path}`);
+          }
           await removeAgentFromRegistry(skillName, agentName as AgentPlatform);
         }
 
@@ -221,8 +227,9 @@ export async function remove(args: string[]): Promise<void> {
           await removeSkillFromLocalLock(skillName, projectCwd);
         }
       } else {
-        // Remove all agent paths
+        // Remove all agent paths（canonical 本身留到下一步统一删除，保证先删软链再删目标）
         for (const agentRecord of entry.agents) {
+          if (await isSamePhysicalPath(agentRecord.agent_path, entry.canonical_path)) continue;
           await removePath(agentRecord.agent_path);
           logger.success(`Removed ${agentRecord.agent} path: ${agentRecord.agent_path}`);
         }

@@ -18,7 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **commit SHA 固定安装**（对标上游 v1.5.24/#1439）：`add owner/repo/tree/<40位SHA>` 与 `skills` 字段 `owner/repo#<SHA>` 支持；clone 回退路径对 SHA 改用 `git init + fetch --depth 1 origin <sha> + checkout FETCH_HEAD`（`git clone --branch` 不接受裸 SHA），GitHub codeload tarball 原生支持 SHA（`src/core/git-source.ts`）
 - **well-known 作用域语义**（对标上游 #1990）：URL 带路径但作用域 index 不可用、回落到源站根 index 时，路径末段必须匹配某个 skill 名——匹配则只装该 skill，未命中抛 `WellKnownScopeNotFoundError`，绝不静默安装整个根目录；作用域命中但下载或 sha256 摘要校验失败时硬报错，不再静默回退 git clone（`src/core/wellknown-source.ts`）
 
+### Changed
+- **Codex / Kilo 路径对齐上游**：Codex 全局技能目录改为跨 agent 共享的 `~/.agents/skills`（Codex 官方同时读取该目录与 `~/.codex/skills`；共享目录即 skill-master 的 canonical 存储，不再另建 `~/.codex/skills` 软链），检测改用 `~/.codex`（`CODEX_HOME`）存在性；Kilo Code 项目目录改为 `.agents/skills`、全局改为 `~/.kilo/skills`（上游 #2011）。**迁移说明**：历史安装留下的 `~/.codex/skills/*` 软链仍有效但已冗余，可手动删除；新增 `AgentConfig.globalDetectDir` 支持共享目录 agent 的安装检测（`src/platform/agents.ts`）
+
 ### Fixed
+- `remove -a <agent>` 对共享目录 agent（agent 路径即 canonical 本身）只解除登记、不删文件，避免把其他 agent 软链指向的 canonical 一并删掉；整体移除时先删软链再删 canonical；`removePath` 改为无条件 `rm --force`，修复悬空软链因 `existsSync` 跟随软链被误判不存在而漏删（`src/commands/remove.ts`、`src/utils/fs-helpers.ts`）
 - `symlinkOrCopy` 增加同址保护：当 agent 链接路径与 canonical 存储解析到同一物理目录时（如 canonical `~/.agents/skills` 本身是指向某 agent skills 目录的软链），不再先删后链导致 canonical 内容被清空并产生自引用软链环（`src/utils/fs-helpers.ts`）
 - 测试基础设施：`runCli` 子进程默认隔离 HOME 到临时目录，修复并行测试文件并发读写真实 `~/.agents/registry.json` 导致的 `add` 间歇性失败，并消除测试夹具污染开发者真实 skill 库的问题（`tests/test-utils.ts`）
 

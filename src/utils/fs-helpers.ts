@@ -1,6 +1,6 @@
 import { mkdir, cp, readFile, writeFile, rename, symlink, lstat, rm, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
@@ -15,10 +15,21 @@ export async function copyDir(src: string, dest: string): Promise<void> {
   await cp(src, dest, { recursive: true, force: true });
 }
 
-/** Remove a directory or file recursively */
+/**
+ * Remove a directory, file or symlink recursively.
+ * 不用 existsSync 预检：它会跟随软链，悬空软链会被误判为不存在而漏删；
+ * rm 带 force 对不存在的路径静默，对软链只删链本身。
+ */
 export async function removePath(target: string): Promise<void> {
-  if (existsSync(target)) {
-    await rm(target, { recursive: true, force: true });
+  await rm(target, { recursive: true, force: true });
+}
+
+/** 两个路径是否解析到同一物理位置（任一不存在时按规范化路径比较） */
+export async function isSamePhysicalPath(a: string, b: string): Promise<boolean> {
+  try {
+    return (await realpath(a)) === (await realpath(b));
+  } catch {
+    return resolve(a) === resolve(b);
   }
 }
 

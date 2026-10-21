@@ -1,10 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdirSync, rmSync, symlinkSync, writeFileSync, lstatSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, symlinkSync, writeFileSync, lstatSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
-const { symlinkOrCopy } = await import('../../src/utils/fs-helpers.js');
+const { symlinkOrCopy, removePath, isSamePhysicalPath } = await import('../../src/utils/fs-helpers.js');
 
 const tempDirs: string[] = [];
 
@@ -58,3 +58,33 @@ describe('symlinkOrCopy', () => {
     },
   );
 });
+
+describe('removePath', () => {
+  it.skipIf(process.platform === 'win32')('removes dangling symlinks instead of skipping them', async () => {
+    const base = makeTempDir();
+    const link = join(base, 'dangling');
+    symlinkSync(join(base, 'missing-target'), link, 'dir');
+    expect(existsSync(link)).toBe(false); // existsSync 跟随软链 → 悬空链被误判为不存在
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+
+    await removePath(link);
+    expect(() => lstatSync(link)).toThrow();
+  });
+
+  it('is a no-op for missing paths', async () => {
+    await expect(removePath(join(makeTempDir(), 'nope'))).resolves.toBeUndefined();
+  });
+});
+
+describe('isSamePhysicalPath', () => {
+  it.skipIf(process.platform === 'win32')('resolves symlinks before comparing', async () => {
+    const base = makeTempDir();
+    const real = join(base, 'real');
+    mkdirSync(real);
+    const link = join(base, 'link');
+    symlinkSync(real, link, 'dir');
+    expect(await isSamePhysicalPath(link, real)).toBe(true);
+    expect(await isSamePhysicalPath(join(base, 'other'), real)).toBe(false);
+  });
+});
+

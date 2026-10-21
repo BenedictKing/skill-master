@@ -6,6 +6,45 @@ import { parseRemoveFlags } from '../../src/commands/remove.js';
 import { runCli } from '../test-utils.js';
 
 describe('remove command', () => {
+  it('unregisters a shared-store agent (codex) without deleting the canonical skill other agents link to', () => {
+    const testDir = join(tmpdir(), `skill-master-remove-shared-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'project');
+
+    try {
+      mkdirSync(join(projectDir, 'skill-src'), { recursive: true });
+      mkdirSync(join(testHome, '.claude'), { recursive: true });
+      mkdirSync(join(testHome, '.codex'), { recursive: true });
+      writeFileSync(
+        join(projectDir, 'skill-src', 'SKILL.md'),
+        `---\nname: shared-store-skill\ndescription: shared store target\nallowed-tools:\n  - Read\n---\n# shared-store-skill\n`,
+        'utf-8',
+      );
+
+      // 全局装到 claude-code（软链）和 codex（codex 的全局目录就是 canonical 存储 ~/.agents/skills）
+      const addResult = runCli(['add', './skill-src', '-g', '-a', 'claude-code', 'codex', '--yes'], projectDir, { HOME: testHome });
+      expect(addResult.exitCode).toBe(0);
+      const canonical = join(testHome, '.agents', 'skills', 'shared-store-skill');
+      const claudeLink = join(testHome, '.claude', 'skills', 'shared-store-skill');
+      expect(existsSync(canonical)).toBe(true);
+      expect(existsSync(claudeLink)).toBe(true);
+
+      // 只移除 codex：不能把 canonical 删掉，claude-code 的软链必须仍然有效
+      const removeCodex = runCli(['remove', 'shared-store-skill', '-a', 'codex', '--yes'], projectDir, { HOME: testHome });
+      expect(removeCodex.exitCode).toBe(0);
+      expect(existsSync(canonical)).toBe(true);
+      expect(existsSync(join(claudeLink, 'SKILL.md'))).toBe(true);
+
+      // 整体移除：软链与 canonical 全部清理
+      const removeAll = runCli(['remove', 'shared-store-skill', '--yes'], projectDir, { HOME: testHome });
+      expect(removeAll.exitCode).toBe(0);
+      expect(existsSync(canonical)).toBe(false);
+      expect(existsSync(claudeLink)).toBe(false);
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  }, 45000);
+
   it('removes the project lock entry from the git root when run in a nested cwd', () => {
     const testDir = join(tmpdir(), `skill-master-remove-root-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const testHome = join(testDir, 'home');

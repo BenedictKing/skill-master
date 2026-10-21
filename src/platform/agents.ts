@@ -16,6 +16,11 @@ export interface AgentConfig {
   globalSkillsDir: string;
   detectMarker?: string;
   showInUniversalList?: boolean;
+  /**
+   * 当 globalSkillsDir 是共享存储（如 ~/.agents/skills）时，用该目录的存在性
+   * 判断 agent 是否已安装（共享目录本身不能证明某个 agent 存在）。
+   */
+  globalDetectDir?: string;
 }
 
 export const AGENTS = {
@@ -77,7 +82,10 @@ export const AGENTS = {
     name: 'codex',
     displayName: 'Codex',
     skillsDir: '.agents/skills',
-    globalSkillsDir: join(codexHome, 'skills'),
+    // Codex 同时读取 ~/.agents/skills（跨 agent 共享约定）与 ~/.codex/skills；
+    // 共享目录即 skill-master 的 canonical 存储，无需再建软链（对齐上游 v1.7.1）
+    globalSkillsDir: join(home, '.agents', 'skills'),
+    globalDetectDir: codexHome,
   },
   'command-code': {
     name: 'command-code',
@@ -169,8 +177,8 @@ export const AGENTS = {
   kilo: {
     name: 'kilo',
     displayName: 'Kilo Code',
-    skillsDir: '.kilocode/skills',
-    globalSkillsDir: join(home, '.kilocode/skills'),
+    skillsDir: '.agents/skills',
+    globalSkillsDir: join(home, '.kilo/skills'),
     detectMarker: '.kilocode',
   },
   'kimi-code': {
@@ -430,7 +438,10 @@ function isSharedGlobalSkillsDir(skillsDir: string): boolean {
 
 export function detectGlobalPlatforms(): AgentPlatform[] {
   return getInstallablePlatforms().filter((platform) => {
-    const config = AGENTS[platform];
+    const config: AgentConfig = AGENTS[platform];
+    if (config.globalDetectDir) {
+      return existsSync(config.globalDetectDir);
+    }
     if (isSharedGlobalSkillsDir(config.globalSkillsDir)) {
       // The shared skill-master stores are not proof that a specific agent CLI is installed.
       return false;
