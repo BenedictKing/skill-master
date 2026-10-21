@@ -17,7 +17,7 @@ Cross-platform skill lifecycle manager for AI coding agents. It still installs a
 ## Features
 
 - ✅ **Smart .env Management** — Auto backup/restore environment variables during updates
-- ✅ **Multi-Platform Support** — 50 AI coding agents including Claude Code, Cursor, Cline, Windsurf, OpenCode and more
+- ✅ **Multi-Platform Support** — 80 AI coding agents including Claude Code, Cursor, Cline, Windsurf, OpenCode and more
 - ✅ **npx skills Compatible** — Drop-in replacement with same command interface
 - ✅ **Unified Directory** — Centralized management in `~/.agents/`
 - ✅ **Atomic Operations** — Auto rollback on failure
@@ -254,7 +254,7 @@ skill-master update    # or: upgrade
 
 ## Supported Platforms
 
-50 AI coding agents are supported. Auto-detection works for agents with a project directory marker:
+80 AI coding agents are supported. Auto-detection works for agents with a project directory marker:
 
 | Platform | Detection | Skills Directory |
 |----------|-----------|------------------|
@@ -273,9 +273,9 @@ skill-master update    # or: upgrade
 | MiniMax Code | `.minimax/` | `.minimax/skills/` |
 
 <details>
-<summary>All 50 supported agents</summary>
+<summary>All 80 supported agents</summary>
 
-Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code, Kimi Code CLI, Kiro CLI, Kode, Kukuai, MCPJam, MiniMax Code, Mirasim, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, WorkBuddy, Zencoder, Neovate, Pochi, AdaL
+Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code, Kimi Code CLI, Kiro CLI, Kode, Kukuai, MCPJam, MiniMax Code, Mirasim, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, WorkBuddy, Zencoder, Neovate, Pochi, AdaL, AiderDesk, Antigravity CLI, AstrBot, Autohand Code CLI, CodeArts Agent, Codemaker, Code Studio, Devin for Terminal, Dexto, ForgeCode, fx, Grok Build, Hermes Agent, inference.sh, Jazz, Kimchi, Lingma, Loaf, Moxby, Ona, Posit Assistant, Qoder CN, Reasonix, Rovo Dev, Sarvam Code, Tabnine CLI, Terramind, Tinycloud, Zed, ZCode
 
 </details>
 
@@ -292,7 +292,7 @@ See [docs/skill-lifecycle-platform.md](./docs/skill-lifecycle-platform.md) for t
 | Feature | npx skills | skill-master |
 |---------|-----------|---------------|
 | .env Protection | ❌ Deleted on update | ✅ Auto backup/restore |
-| Multi-Platform | ❌ Claude Code only | ✅ 50 platforms |
+| Multi-Platform | ❌ Claude Code only | ✅ 80 platforms |
 | Config Management | ❌ None | ✅ env commands |
 | Diagnostics | ❌ None | ✅ doctor command |
 | Discovery & Recommendation | ❌ Minimal | ✅ Multi-source + recommend |

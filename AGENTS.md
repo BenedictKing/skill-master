@@ -44,7 +44,7 @@ src/
 │   ├── env-manager.ts  # .env backup/restore
 │   └── local-lock.ts   # Project lock file (skills-lock.json)
 ├── platform/
-│   ├── agents.ts       # 50 agent configs (skillsDir, globalSkillsDir, detectMarker)
+│   ├── agents.ts       # 80 agent configs (skillsDir, globalSkillsDir, detectMarker)
 │   ├── detector.ts     # Auto-detect agent from cwd
 │   └── capability-map.ts # Tool name → capability mapping
 ├── types/index.ts      # TypeScript interfaces
@@ -116,7 +116,7 @@ Supports multiple formats:
 
 ### Agent Platform Detection
 
-`platform/detector.ts` checks for marker directories (`.Codex/`, `.cursor/`, `.cline/`, etc.) in cwd to auto-detect target agent. Falls back to `Codex`. See `platform/agents.ts` for all 50 supported agents with their detectMarker, skillsDir, and globalSkillsDir.
+`platform/detector.ts` checks for marker directories (`.Codex/`, `.cursor/`, `.cline/`, etc.) in cwd to auto-detect target agent. Falls back to `Codex`. See `platform/agents.ts` for all 80 supported agents with their detectMarker, skillsDir, and globalSkillsDir.
 
 ## Command Aliases
 

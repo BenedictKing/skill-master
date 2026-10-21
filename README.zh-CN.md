@@ -237,7 +237,7 @@ skill-master solve "<task>" --json
 
 ## 支持的平台
 
-支持 50 个 AI 编程代理。具有项目目录标记的代理支持自动检测：
+支持 80 个 AI 编程代理。具有项目目录标记的代理支持自动检测：
 
 | 平台 | 检测标识 | Skills 目录 |
 |------|---------|------------|
@@ -256,9 +256,9 @@ skill-master solve "<task>" --json
 | MiniMax Code | `.minimax/` | `.minimax/skills/` |
 
 <details>
-<summary>全部 50 个支持的代理</summary>
+<summary>全部 80 个支持的代理</summary>
 
-Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code, Kimi Code CLI, Kiro CLI, Kode, Kukuai, MCPJam, MiniMax Code, Mirasim, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, WorkBuddy, Zencoder, Neovate, Pochi, AdaL
+Amp, Antigravity, Augment, Claude Code, OpenClaw, Cline, CodeBuddy, Codex, Command Code, Continue, Crush, Cursor, Droid, Gemini CLI, GitHub Copilot, Goose, Junie, iFlow CLI, Kilo Code, Kimi Code, Kimi Code CLI, Kiro CLI, Kode, Kukuai, MCPJam, MiniMax Code, Mirasim, Mistral Vibe, Mux, OpenCode, OpenHands, Pi, Qoder, Qwen Code, Replit, Roo Code, Trae, Trae CN, Windsurf, WorkBuddy, Zencoder, Neovate, Pochi, AdaL, AiderDesk, Antigravity CLI, AstrBot, Autohand Code CLI, CodeArts Agent, Codemaker, Code Studio, Devin for Terminal, Dexto, ForgeCode, fx, Grok Build, Hermes Agent, inference.sh, Jazz, Kimchi, Lingma, Loaf, Moxby, Ona, Posit Assistant, Qoder CN, Reasonix, Rovo Dev, Sarvam Code, Tabnine CLI, Terramind, Tinycloud, Zed, ZCode
 
 </details>
 
@@ -287,7 +287,7 @@ skill-master update    # 或: upgrade
 | 特性 | npx skills | skill-master |
 |------|-----------|---------------|
 | .env 保护 | ❌ 每次更新被删除 | ✅ 自动备份恢复 |
-| 跨平台支持 | ❌ 仅 Claude Code | ✅ 50 个平台 |
+| 跨平台支持 | ❌ 仅 Claude Code | ✅ 80 个平台 |
 | 配置管理 | ❌ 无 | ✅ env 子命令 |
 | 诊断工具 | ❌ 无 | ✅ doctor 命令 |
 | 发现与推荐 | ❌ 很弱 | ✅ 多源发现 + recommend |
