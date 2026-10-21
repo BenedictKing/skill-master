@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.19] - 2026-10-21
+
+### Added
+- `use` 命令支持直接下载 URL（`.md`/`.zip`/`.tgz`/`.tar.gz`，含 codeload tarball 与 Release 资产），下载失败回退原有 blob/well-known/clone 链路（`src/core/use-engine.ts`）
+
+### Changed
+- CI `publish.yml` 升级 `actions/checkout@v5`、`actions/setup-node@v5`（@v4 依赖的 Node 20 已被 GitHub 强制跑在 Node 24 并警告弃用）
+
 ## [0.1.18] - 2026-10-21
 
 ### Added
