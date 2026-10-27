@@ -48,7 +48,7 @@ Usage:
   skill-master check                      Check for skill updates
   skill-master env <list|set|edit>        Manage environment variables
   skill-master info <skill-name>          Show skill details
-  skill-master doctor                     Run diagnostics
+  skill-master doctor [--fix]            Run diagnostics; --fix removes orphaned links
 
 Add Options:
   -g, --global          Install globally for detected agents
@@ -195,7 +195,7 @@ async function main() {
         await info(commandArgs);
         break;
       case 'doctor':
-        await doctor();
+        await doctor(commandArgs);
         break;
 
       default:

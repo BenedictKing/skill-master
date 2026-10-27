@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.20] - 2026-10-27
+
+### Added
+- **孤儿软链检测与清理**（`src/core/orphan-links.ts`）：`remove` 在 registry 与 source 均查不到时，回退扫描全部 80 个 agent 的项目级 + 全局 skills 目录，找出该名字的悬空软链（canonical 已删但链接残留）并列出明细、确认后删除（`-a` 限定 agent、`--purge` 顺带清 config、`-y` 跳过确认）；只清理目标已消失的软链，未登记但目标存活的链接不受影响（`src/commands/remove.ts`）
+- `doctor` 新增孤儿链检查段，报告各 agent 目录中的全部悬空软链，`doctor --fix [-y]` 一键清理；canonical 存储 `~/.agents/skills` 本身跳过扫描避免误报（`src/commands/doctor.ts`）
+
 ## [0.1.19] - 2026-10-21
 
 ### Added

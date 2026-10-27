@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { parseRemoveFlags } from '../../src/commands/remove.js';
@@ -72,6 +72,48 @@ describe('remove command', () => {
 
       const lock = JSON.parse(readFileSync(join(projectDir, 'skills-lock.json'), 'utf-8'));
       expect(lock.skills['remove-root-skill']).toBeUndefined();
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  }, 30000);
+
+  it('cleans orphaned dangling links when the skill is missing from the registry', () => {
+    const testDir = join(tmpdir(), `skill-master-remove-orphan-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const testHome = join(testDir, 'home');
+    const projectDir = join(testDir, 'project');
+
+    try {
+      mkdirSync(join(testHome, '.claude', 'skills'), { recursive: true });
+      mkdirSync(join(testHome, '.agents', 'skills'), { recursive: true });
+      mkdirSync(join(projectDir, '.claude', 'skills'), { recursive: true });
+      // 未登记但 canonical 存活的技能:软链目标有效,绝不能被孤儿清理误删
+      mkdirSync(join(testHome, '.agents', 'skills', 'live-skill'), { recursive: true });
+      writeFileSync(join(testHome, '.agents', 'skills', 'live-skill', 'SKILL.md'), '# live\n', 'utf-8');
+      writeFileSync(
+        join(testHome, '.agents', 'registry.json'),
+        JSON.stringify({ version: 2, skills: {} }, null, 2),
+        'utf-8',
+      );
+
+      // 全局 + 项目两个目录各残留一条指向已删 canonical 的悬空软链
+      const missingTarget = join(testHome, '.agents', 'skills', 'orphan-skill');
+      const globalLink = join(testHome, '.claude', 'skills', 'orphan-skill');
+      const projectLink = join(projectDir, '.claude', 'skills', 'orphan-skill');
+      symlinkSync(missingTarget, globalLink);
+      symlinkSync(missingTarget, projectLink);
+      symlinkSync(join(testHome, '.agents', 'skills', 'live-skill'), join(testHome, '.claude', 'skills', 'live-skill'));
+
+      const result = runCli(['remove', 'orphan-skill', '-g', '--yes'], projectDir, { HOME: testHome });
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('orphaned');
+      expect(existsSync(globalLink)).toBe(false);
+      expect(existsSync(projectLink)).toBe(false);
+      expect(existsSync(join(testHome, '.claude', 'skills', 'live-skill'))).toBe(true);
+
+      // 没有任何孤儿链可清理时,仍然报 not found
+      const notFound = runCli(['remove', 'never-existed', '--yes'], projectDir, { HOME: testHome });
+      expect(notFound.exitCode).toBe(1);
+      expect(notFound.stdout + notFound.stderr).toContain('not found');
     } finally {
       rmSync(testDir, { recursive: true, force: true });
     }

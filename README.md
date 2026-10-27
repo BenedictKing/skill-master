@@ -203,8 +203,11 @@ skill-master init my-new-skill
 # Show skill details
 skill-master info my-skill
 
-# Run diagnostics
+# Run diagnostics (also reports orphaned dangling links)
 skill-master doctor
+
+# Remove orphaned dangling links found by doctor
+skill-master doctor --fix
 ```
 
 ## JSON Interfaces

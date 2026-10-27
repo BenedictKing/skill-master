@@ -1,6 +1,7 @@
 import { getRegistryEntry, removeFromRegistry, removeAgentFromRegistry, listRegistry, findSkillsBySource } from '../core/registry.js';
 import { removeSkillFromLocalLock } from '../core/local-lock.js';
 import { resolveProjectCwd } from '../core/project-root.js';
+import { findOrphanedSkillLinks } from '../core/orphan-links.js';
 import { isSamePhysicalPath, removePath } from '../utils/fs-helpers.js';
 import { getSkillCanonicalPath, getSkillConfigPath, getAgentGlobalSkillPath } from '../utils/paths.js';
 import { confirm } from '../utils/prompt.js';
@@ -165,6 +166,7 @@ export async function remove(args: string[]): Promise<void> {
   // Resolve names that refer to a source (e.g. "owner/repo") into the installed skills.
   // Remains a no-op when every name is already a direct skill entry.
   const resolved: string[] = [];
+  let orphanCleaned = false;
   for (const name of skillNames) {
     const entry = await getRegistryEntry(name);
     if (entry) {
@@ -173,7 +175,36 @@ export async function remove(args: string[]): Promise<void> {
     }
     const bySource = await findSkillsBySource(name);
     if (bySource.length === 0) {
-      throw new SkillNotFoundError(name);
+      // Registry 查不到时,回退检查 agent 目录里是否有该名字的悬空软链
+      // (canonical 已删但链接残留的场景),有则按孤儿链清理
+      const agentFilter = flags.agent.length > 0 ? new Set(flags.agent) : null;
+      const orphans = findOrphanedSkillLinks(projectCwd, name).filter(
+        orphan => !agentFilter || agentFilter.has(orphan.agent),
+      );
+      if (orphans.length === 0) {
+        throw new SkillNotFoundError(name);
+      }
+      logger.info(`Skill "${name}" is not in the registry; found ${orphans.length} orphaned link(s):`);
+      for (const orphan of orphans) {
+        logger.info(`  ${orphan.agent}: ${orphan.linkPath} -> ${orphan.target}`);
+      }
+      if (!flags.yes) {
+        const ok = await confirm(`Remove ${orphans.length} orphaned link(s) for "${name}"? [y/N] `);
+        if (!ok) {
+          logger.info('Aborted.');
+          process.exit(0);
+        }
+      }
+      for (const orphan of orphans) {
+        await removePath(orphan.linkPath);
+        logger.success(`Removed orphaned link: ${orphan.linkPath}`);
+      }
+      if (flags.purge) {
+        await removePath(getSkillConfigPath(name));
+        logger.success(`Purged config directory for "${name}"`);
+      }
+      orphanCleaned = true;
+      continue;
     }
     if (bySource.length > 1 && !flags.yes) {
       const ok = await confirm(`Remove ${bySource.length} skills installed from "${name}"? [y/N] `);
@@ -186,6 +217,12 @@ export async function remove(args: string[]): Promise<void> {
     resolved.push(...bySource);
   }
   skillNames = resolved;
+
+  // 本次只有孤儿链被清理时,registry 驱动的移除循环无事可做,直接收尾
+  if (skillNames.length === 0 && orphanCleaned) {
+    logger.success('Orphaned link cleanup complete.');
+    return;
+  }
 
   try {
     for (const skillName of skillNames) {
